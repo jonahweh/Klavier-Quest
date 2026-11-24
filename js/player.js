@@ -178,6 +178,7 @@ export class Player {
     const b = e.target.closest('button,[data-a]');
     if (!b) return;
     if (b.dataset.mode) {
+      this.stopPreview();
       if (this.running) this.stop();
       this.mode = b.dataset.mode;
       this.root.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x === b));
@@ -320,7 +321,18 @@ export class Player {
     return Object.keys(hits).filter(m => e.midis.includes(+m)).length >= r.need;
   }
 
+  stopPreview() {
+    if (!this.previewing) return;
+    this.previewing = false;
+    cancelAnimationFrame(this.praf);
+    Synth.stopAll();
+    Accomp.stop();
+    Listener.muted = false;
+    const b = this.$('[data-a=listen]'); if (b) b.innerHTML = `${ICON.play} Anhören`;
+  }
+
   async start() {
+    this.stopPreview();
     await unlockAudio();
     if (!(await this.ensureMic()) && S.settings.input === 'mic') { /* Touch geht trotzdem */ }
     this.reset();
@@ -347,6 +359,8 @@ export class Player {
 
   stop() {
     this.running = false;
+    Synth.stopAll();
+    this.$('.countin')?.classList.remove('on');
     this.$('[data-a=start]').innerHTML = `${ICON.play} Start`;
     cancelAnimationFrame(this.raf);
     clearInterval(this.stuckTimer);
@@ -522,8 +536,10 @@ export class Player {
 
   // ----- Vorhören -----
   async preview() {
+    if (this.previewing) { this.stopPreview(); this.reset(); return; }
     await unlockAudio();
     if (this.running) this.stop();
+    Synth.stopAll();
     this.reset();
     const spb = 60 / this.bpm();
     const c = getCtx();
@@ -538,7 +554,7 @@ export class Player {
     this.$('.playhead').style.display = 'block';
     const p0 = performance.now() / 1000 + 0.3;
     this.previewing = true;
-    this.$('[data-a=listen]').disabled = true;
+    this.$('[data-a=listen]').innerHTML = `${ICON.stop} Stopp`;
     const loop = () => {
       const s = performance.now() / 1000 - p0;
       this.placeRhythm(Math.max(0, s / spb));
@@ -547,7 +563,7 @@ export class Player {
         this.previewing = false;
         Accomp.stop();
         Listener.muted = false;
-        this.$('[data-a=listen]').disabled = false;
+        this.$('[data-a=listen]').innerHTML = `${ICON.play} Anhören`;
         this.reset();
       }
     };
@@ -573,8 +589,8 @@ export class Player {
   unwake() { try { this.wl?.release(); } catch (e) { /* egal */ } this.wl = null; }
 
   destroy() {
+    this.stopPreview();
     this.stop();
-    this.previewing = false;
     cancelAnimationFrame(this.praf);
     this.unsub?.();
     this.ro?.disconnect();

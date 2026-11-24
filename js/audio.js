@@ -41,7 +41,7 @@ export const Synth = {
     const t0 = Math.max(c.currentTime, when || c.currentTime);
     const f = midiToFreq(midi);
     const g = c.createGain();
-    g.connect(dest || this.out);
+    g.connect(dest || this.bus());
     const peak = 0.22 * vel;
     const decay = Math.max(0.5, 2.6 - (midi - 48) * 0.035);
     g.gain.setValueAtTime(0.0001, t0);
@@ -73,6 +73,18 @@ export const Synth = {
     const ng = c.createGain(); ng.gain.value = 0.25 * vel;
     n.connect(bp); bp.connect(ng); ng.connect(g); n.start(t0);
   },
+  // Alles Geplante läuft über einen „Bus“, der sich jederzeit stummschalten lässt
+  bus() {
+    this.init();
+    if (!this._bus) { this._bus = getCtx().createGain(); this._bus.connect(this.out); }
+    return this._bus;
+  },
+  stopAll() {
+    if (!this._bus) return;
+    const b = this._bus;
+    this._bus = null;
+    try { b.gain.setValueAtTime(b.gain.value, getCtx().currentTime); b.gain.linearRampToValueAtTime(0, getCtx().currentTime + 0.04); setTimeout(() => b.disconnect(), 120); } catch (e) { /* egal */ }
+  },
   chord(midis, when, dur, vel, dest) { midis.forEach(m => this.note(m, when, dur, vel, dest)); },
   // Kontrabass-Klang: pizz = gezupft, sonst gestrichen
   bass(midi, when = 0, dur = 0.8, pizz = true, vel = 0.8, dest = null) {
@@ -81,7 +93,7 @@ export const Synth = {
     const t0 = Math.max(c.currentTime, when || c.currentTime);
     const f = midiToFreq(midi);
     const g = c.createGain();
-    g.connect(dest || this.out);
+    g.connect(dest || this.bus());
     if (pizz) {
       const peak = 0.5 * vel;
       g.gain.setValueAtTime(0.0001, t0);
@@ -116,7 +128,7 @@ export const Synth = {
     this.init();
     const c = getCtx();
     const t0 = Math.max(c.currentTime, when);
-    const out = c.createGain(); out.connect(dest || this.out);
+    const out = c.createGain(); out.connect(dest || this.bus());
     if (kind === 'kick') {
       const o = c.createOscillator(); o.frequency.setValueAtTime(130, t0); o.frequency.exponentialRampToValueAtTime(42, t0 + 0.12);
       out.gain.setValueAtTime(0.9 * vel, t0); out.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
@@ -144,7 +156,7 @@ export const Synth = {
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.linearRampToValueAtTime(accent ? 0.16 : 0.09, t0 + 0.002);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
-    o.connect(g); g.connect(this.out); o.start(t0); o.stop(t0 + 0.06);
+    o.connect(g); g.connect(this.bus()); o.start(t0); o.stop(t0 + 0.06);
   },
 };
 
@@ -406,7 +418,7 @@ export const Accomp = {
     this.stop();
     Synth.init();
     const c = getCtx();
-    const g = c.createGain(); g.gain.value = vol; g.connect(Synth.out);
+    const g = c.createGain(); g.gain.value = vol; g.connect(Synth.bus());
     this.run = g;
     const voice = ch => {
       const tones = ch.iv.map(i => ch.root + i);

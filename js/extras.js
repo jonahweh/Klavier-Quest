@@ -69,7 +69,7 @@ export function sprintScreen(root, back) {
       $('.kb').remove();
     } else {
       $('.answers').remove();
-      if (bass) { kb = new Fingerboard($('.kb'), { tol: 25 }); } else {
+      if (bass) { kb = new Fingerboard($('.kb'), { tol: 25 }); Listener.onPitch = p => kb?.setPitch(p); } else {
       const lo = cfg.answer === 'keys' ? 60 : (cfg.clef === 'b' ? 36 : cfg.clef === 't' ? 57 : 36);
       const hi = cfg.answer === 'keys' ? 71 : (cfg.clef === 'b' ? 64 : 84);
       kb = new Keyboard($('.kb'), lo, hi, { sound: cfg.answer === 'keys' });
@@ -85,6 +85,7 @@ export function sprintScreen(root, back) {
       const score = { staves: [staff], key: 'C', ts: [4, 4], measure: 4, total: 1.2, notes: [{ beat: 0.15, dur: 4, staff, rest: false, pitches: [p], ev: 0 }], events: [] };
       renderScore(svg, score, { space: 17, noTime: true, pxPerBeat: 130, width: 270 });
       Listener.setExpected([p.midi + (bass ? TRANSPOSE : 0)]);
+      if (kb && bass) kb.target = p.midi + TRANSPOSE;
     };
     const answer = ok => {
       if (lock) return;
@@ -120,7 +121,7 @@ export function sprintScreen(root, back) {
       const t = $('.timer b'); if (t) t.textContent = left;
       if (left <= 0) { stop(); done(); }
     }, 1000);
-    function stop() { clearInterval(timer); unsub(); Listener.setExpected([]); }
+    function stop() { clearInterval(timer); unsub(); Listener.setExpected([]); Listener.onPitch = null; Synth.stopAll(); }
     function done() {
       const best = score > S.stats.sprintBest;
       S.stats.sprintBest = Math.max(S.stats.sprintBest, score);
@@ -178,7 +179,7 @@ export function earScreen(root, back) {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.m) { st.mode = b.dataset.m; localStorage.setItem('kq-ear', JSON.stringify(st)); setup(); }
       if (b.dataset.l) { st.lvl = b.dataset.l; localStorage.setItem('kq-ear', JSON.stringify(st)); setup(); }
-      if (b.dataset.a === 'back') back();
+      if (b.dataset.a === 'back') { Synth.stopAll(); back(); }
       if (b.dataset.a === 'go') round();
     };
   };
@@ -187,7 +188,7 @@ export function earScreen(root, back) {
     await unlockAudio();
     Listener.mode = bass ? 'bass' : 'piano';
     if (st.mode === 'nachspielen' && S.settings.input === 'mic') { try { await Listener.start(); Listener.sens = S.settings.sens; } catch (e) { /* Touch */ } }
-    let q = 0, right = 0, cur = null, answered = false, unsub = null;
+    let q = 0, right = 0, cur = null, answered = false, unsub = null, muteT = 0, nextT = 0;
     root.innerHTML = `
       <div class="page narrow ear">
         <header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button><h1>${MODES.find(m => m[0] === st.mode)[1]}</h1><span class="qcount"></span></header>
@@ -203,13 +204,16 @@ export function earScreen(root, back) {
     let kb = null;
     if (st.mode === 'nachspielen') kb = bass ? new Fingerboard($('.kb'), { tol: 25 }) : new Keyboard($('.kb'), 60, 71);
     else $('.kb').remove();
+    Listener.onPitch = bass && kb ? p => kb.setPitch(p) : null;
     const play = () => {
+      Synth.stopAll();
+      clearTimeout(muteT);
       const c = getCtx(); const t = c.currentTime + 0.05;
       Listener.muted = true;
       let end = 0;
       if (cur.type === 'seq') cur.notes.forEach((m, i) => { if (bass && st.mode === 'nachspielen') Synth.bass(m, t + i * 0.7, 0.6, true, 0.9); else Synth.note(m, t + i * 0.7, 0.6); end = (i + 1) * 0.7; });
       if (cur.type === 'chord') { cur.notes.forEach((m, i) => Synth.note(m, t + i * 0.35, 0.4)); Synth.chord(cur.notes, t + 1.2, 1.2); end = 2.5; }
-      setTimeout(() => (Listener.muted = false), end * 1000 + 300);
+      muteT = setTimeout(() => (Listener.muted = false), end * 1000 + 300);
     };
     const make = () => {
       answered = false;
@@ -240,7 +244,8 @@ export function earScreen(root, back) {
         Listener.setExpected([notes[0]]);
       }
       $('.answers').innerHTML = html;
-      setTimeout(play, 250);
+      clearTimeout(nextT);
+      nextT = setTimeout(play, 250);
     };
     const resolve = ok => {
       answered = true;
@@ -280,7 +285,7 @@ export function earScreen(root, back) {
         resolve(ok);
       }
       if (b.dataset.a === 'next') { q++; if (q >= 10) finish(); else make(); }
-      if (b.dataset.a === 'back') { unsub(); Listener.setExpected([]); setup(); }
+      if (b.dataset.a === 'back') { unsub(); clearTimeout(nextT); clearTimeout(muteT); Synth.stopAll(); Listener.muted = false; Listener.setExpected([]); setup(); }
     };
     function finish() {
       unsub();

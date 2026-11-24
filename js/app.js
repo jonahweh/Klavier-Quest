@@ -5,7 +5,7 @@ import { BASS_PIECES } from './bass-pieces.js';
 import { applyFingering, parseChords, chordLabel, TRANSPOSE, Fingerboard, OPEN, STRING_NAMES } from './bass.js';
 import { buildScore, generateDrill, midiLabel } from './score.js';
 import { renderScore } from './notation.js';
-import { Synth, Listener, Midi, getCtx, unlockAudio } from './audio.js';
+import { Synth, Listener, Midi, Accomp, getCtx, unlockAudio } from './audio.js';
 import { Player, ICON, esc } from './player.js';
 import { sprintScreen, earScreen } from './extras.js';
 import {
@@ -41,6 +41,7 @@ function hintFor(world) {
 // ================= Übersicht =================
 function home() {
   destroyPlayer();
+  Listener.stop();
   const lv = levelInfo();
   const nx = nextStep();
   const goal = S.settings.goal;
@@ -107,8 +108,8 @@ function home() {
     if (b.dataset.boss != null) return runStep(W()[+b.dataset.boss], null, { type: 'piece', id: 'boss-' + W()[+b.dataset.boss].id, piece: W()[+b.dataset.boss].boss, boss: true });
     const g = b.dataset.go;
     if (g === 'settings') settings();
-    if (g === 'sprint') sprintScreen(app, home);
-    if (g === 'ear') earScreen(app, home);
+    if (g === 'sprint') { destroyPlayer(); sprintScreen(app, home); }
+    if (g === 'ear') { destroyPlayer(); earScreen(app, home); }
     if (g === 'library') library();
     if (g === 'ach') achievements();
     if (g === 'next') { const n = nextStep(); if (n) n.lesson ? lessonScreen(n.wi, n.li) : runStep(n.world, null, n.step); }
@@ -325,15 +326,16 @@ function theoryScreen(id, onDone, back) {
     if (b.dataset.a === 'ok') return onDone ? onDone() : back();
     if (b.dataset.a === 'hear' && sc) {
       await unlockAudio();
+      Synth.stopAll(); timers.forEach(clearTimeout); timers = [];
       const spb = 60 / sc.tempo, t0 = getCtx().currentTime + 0.1;
       const els = renderScore(app.querySelector('.staff'), sc, ro()).evEls;
       sc.events.forEach((ev, i) => {
         ev.notes.forEach(n => n.pitches.forEach(p => t.bass
           ? Synth.bass(p.midi + TRANSPOSE, t0 + n.beat * spb, n.dur * spb * 0.9, sc.tech === 'pizz', 0.9)
           : Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95)));
-        setTimeout(() => { els.forEach(g => g?.classList.remove('cur')); els[i]?.classList.add('cur'); }, (ev.beat * spb + 0.1) * 1000);
+        timers.push(setTimeout(() => { els.forEach(g => g?.classList.remove('cur')); els[i]?.classList.add('cur'); }, (ev.beat * spb + 0.1) * 1000));
       });
-      setTimeout(() => els.forEach(g => g?.classList.remove('cur')), (sc.total * spb + 0.6) * 1000);
+      timers.push(setTimeout(() => els.forEach(g => g?.classList.remove('cur')), (sc.total * spb + 0.6) * 1000));
     }
   };
 }
@@ -394,7 +396,7 @@ function tuner() {
   app.onclick = async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.a === 'back') { Listener.onPitch = null; return home(); }
-    if (b.dataset.ref) { await unlockAudio(); Synth.bass(+b.dataset.ref, 0, 2.2, false, 0.9); Listener.muteUntil = performance.now() / 1000 + 2.6; }
+    if (b.dataset.ref) { await unlockAudio(); Synth.stopAll(); Synth.bass(+b.dataset.ref, 0, 2.2, false, 0.9); Listener.muteUntil = performance.now() / 1000 + 2.6; }
     if (b.dataset.a === 'start') {
       try { await Listener.start(); Listener.sens = S.settings.sens; b.textContent = 'Hört zu …'; b.disabled = true; }
       catch (err) { b.textContent = 'Kein Mikrofon-Zugriff'; }
@@ -520,10 +522,20 @@ function confirmBox(text, yes, fn) {
   ov.onclick = e => { const b = e.target.closest('button'); if (!b) return; ov.remove(); if (b.dataset.c === 'yes') fn(); };
 }
 
-function destroyPlayer() { if (current) { current.destroy(); current = null; } }
+let timers = [];
+function destroyPlayer() {
+  if (current) { current.destroy(); current = null; }
+  timers.forEach(clearTimeout); timers = [];
+  Synth.stopAll(); Accomp.stop();
+  Listener.onPitch = null; Listener.setExpected([]); Listener.muted = false;
+}
 
 const LOGO = '<svg viewBox="0 0 40 40" class="logo-mark"><rect x="2" y="6" width="36" height="28" rx="7" fill="var(--ink)"/><rect x="7" y="11" width="6" height="18" rx="1.5" fill="#fff"/><rect x="17" y="11" width="6" height="18" rx="1.5" fill="#fff"/><rect x="27" y="11" width="6" height="18" rx="1.5" fill="var(--accent)"/><rect x="11.5" y="11" width="3.5" height="10" rx="1" fill="var(--ink)"/><rect x="21.5" y="11" width="3.5" height="10" rx="1" fill="var(--ink)"/></svg>';
 
 // Start
-document.addEventListener('visibilitychange', () => { if (document.hidden && current?.running) current.stop(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  if (current) { current.stopPreview(); if (current.running) { current.stop(); current.reset(); } }
+  Synth.stopAll(); Accomp.stop();
+});
 home();
