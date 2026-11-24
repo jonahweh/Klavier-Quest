@@ -3,6 +3,7 @@ import { renderScore } from './notation.js';
 import { parsePitch, midiName, germanName, pitchFromMidi } from './score.js';
 import { Input, Listener, Synth, getCtx, unlockAudio } from './audio.js';
 import { Keyboard, ICON, esc } from './player.js';
+import { Fingerboard, TRANSPOSE } from './bass.js';
 import { S, save, addXP, taskDone, checkAchievements } from './store.js';
 
 const rand = a => a[Math.floor(Math.random() * a.length)];
@@ -10,7 +11,10 @@ const range = (a, b) => { const out = []; let p = parsePitch(a); const end = par
 
 // ================= Notenlese-Sprint =================
 export function sprintScreen(root, back) {
-  const cfg = Object.assign({ clef: 't', area: 'in', answer: 'names', acc: false }, JSON.parse(localStorage.getItem('kq-sprint') || '{}'));
+  const bass = S.instrument === 'bass';
+  const LS = bass ? 'kq-sprint-bass' : 'kq-sprint';
+  const cfg = Object.assign({ clef: bass ? 'b' : 't', area: 'in', answer: 'names', acc: false }, JSON.parse(localStorage.getItem(LS) || '{}'));
+  if (bass) { cfg.clef = 'b'; if (cfg.answer === 'keys') cfg.answer = 'names'; }
   const opt = (k, v, label) => `<button class="${cfg[k] === v ? 'on' : ''}" data-k="${k}" data-v="${v}">${label}</button>`;
   const setup = () => {
     root.innerHTML = `
@@ -18,11 +22,11 @@ export function sprintScreen(root, back) {
       <header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button><h1>Notenlese-Sprint</h1></header>
       <p class="lead">60 Sekunden, so viele Noten wie möglich. Trainiert das blitzschnelle Erkennen – die Grundlage fürs Blattspiel.</p>
       <div class="form">
-        <label>Schlüssel</label><div class="seg">${opt('clef', 't', 'Violin')}${opt('clef', 'b', 'Bass')}${opt('clef', 'tb', 'Beide')}</div>
-        <label>Bereich</label><div class="seg">${opt('area', 'in', 'Im System')}${opt('area', 'ledger', 'Mit Hilfslinien')}</div>
-        <label>Antworten mit</label><div class="seg">${opt('answer', 'names', 'Notennamen')}${opt('answer', 'keys', 'Klaviatur')}${opt('answer', 'play', 'Spielen')}</div>
+        ${bass ? '' : `<label>Schlüssel</label><div class="seg">${opt('clef', 't', 'Violin')}${opt('clef', 'b', 'Bass')}${opt('clef', 'tb', 'Beide')}</div>`}
+        <label>Bereich</label><div class="seg">${opt('area', 'in', 'Im System')}${opt('area', 'ledger', bass ? 'Ganzer Kontrabass' : 'Mit Hilfslinien')}</div>
+        <label>Antworten mit</label><div class="seg">${opt('answer', 'names', 'Notennamen')}${bass ? '' : opt('answer', 'keys', 'Klaviatur')}${opt('answer', 'play', bass ? 'Auf dem Bass spielen' : 'Spielen')}</div>
         <label>Vorzeichen</label><div class="seg">${opt('acc', false, 'Ohne')}${opt('acc', true, 'Mit ♯ und ♭')}</div>
-        <p class="hint-line">${cfg.answer === 'play' ? 'Spielen: Du musst die Note in der richtigen Oktave auf deinem Klavier treffen.' : cfg.answer === 'keys' ? 'Klaviatur: Tippe die Taste – die Oktave ist egal.' : 'Notennamen: C D E F G A H – Vorzeichen gehen hier nicht.'}</p>
+        <p class="hint-line">${cfg.answer === 'play' ? (bass ? 'Spielen: Greif die Note auf deinem Kontrabass – in der notierten Lage (klingt eine Oktave tiefer).' : 'Spielen: Du musst die Note in der richtigen Oktave auf deinem Klavier treffen.') : cfg.answer === 'keys' ? 'Klaviatur: Tippe die Taste – die Oktave ist egal.' : 'Notennamen: C D E F G A H – Vorzeichen gehen hier nicht.'}</p>
       </div>
       <div class="best">Bestwert: <b>${S.stats.sprintBest}</b></div>
       <button class="btn primary big" data-a="go">${ICON.bolt} Sprint starten</button>
@@ -33,7 +37,7 @@ export function sprintScreen(root, back) {
         let v = b.dataset.v; if (v === 'true') v = true; if (v === 'false') v = false;
         cfg[b.dataset.k] = v;
         if (cfg.answer === 'names') cfg.acc = false;
-        localStorage.setItem('kq-sprint', JSON.stringify(cfg));
+        localStorage.setItem(LS, JSON.stringify(cfg));
         setup();
       }
       if (b.dataset.a === 'back') back();
@@ -42,10 +46,11 @@ export function sprintScreen(root, back) {
   };
   const pools = {
     t: { in: range('E4', 'F5').concat(['C4', 'D4', 'G5']), ledger: range('A3', 'C6') },
-    b: { in: range('G2', 'A3').concat(['E2', 'F2', 'B3', 'C4']), ledger: range('C2', 'E4') },
+    b: { in: range('G2', 'A3').concat(['E2', 'F2', 'B3', 'C4']), ledger: bass ? range('E2', 'E4') : range('C2', 'E4') },
   };
   async function run() {
     await unlockAudio();
+    Listener.mode = bass ? 'bass' : 'piano';
     if (cfg.answer === 'play' && S.settings.input === 'mic') { try { await Listener.start(); Listener.sens = S.settings.sens; } catch (e) { /* Touch geht */ } }
     let left = 60, score = 0, miss = 0, cur = null, lock = false, streak = 0;
     root.innerHTML = `
@@ -64,9 +69,11 @@ export function sprintScreen(root, back) {
       $('.kb').remove();
     } else {
       $('.answers').remove();
+      if (bass) { kb = new Fingerboard($('.kb'), { tol: 25 }); } else {
       const lo = cfg.answer === 'keys' ? 60 : (cfg.clef === 'b' ? 36 : cfg.clef === 't' ? 57 : 36);
       const hi = cfg.answer === 'keys' ? 71 : (cfg.clef === 'b' ? 64 : 84);
       kb = new Keyboard($('.kb'), lo, hi, { sound: cfg.answer === 'keys' });
+      }
     }
     const next = () => {
       const staff = cfg.clef === 'tb' ? rand(['t', 'b']) : cfg.clef;
@@ -77,7 +84,7 @@ export function sprintScreen(root, back) {
       cur = { tok, p, staff };
       const score = { staves: [staff], key: 'C', ts: [4, 4], measure: 4, total: 1.2, notes: [{ beat: 0.15, dur: 4, staff, rest: false, pitches: [p], ev: 0 }], events: [] };
       renderScore(svg, score, { space: 17, noTime: true, pxPerBeat: 130, width: 270 });
-      Listener.setExpected([p.midi]);
+      Listener.setExpected([p.midi + (bass ? TRANSPOSE : 0)]);
     };
     const answer = ok => {
       if (lock) return;
@@ -92,7 +99,7 @@ export function sprintScreen(root, back) {
         next();
       } else {
         miss++; streak = 0; lock = true;
-        fb.textContent = 'Das war ' + germanName(cur.p.letter, cur.p.alter) + (cfg.answer === 'play' ? cur.p.oct : '');
+        fb.textContent = 'Das war ' + germanName(cur.p.letter, cur.p.alter) + (cfg.answer === 'play' && !bass ? cur.p.oct : '');
         fb.className = 'sprint-fb bad';
         $('.sprint-card').classList.add('flash-bad');
         setTimeout(() => { lock = false; $('.sprint-card')?.classList.remove('flash-bad'); fb.textContent = ''; next(); }, 900);
@@ -101,7 +108,7 @@ export function sprintScreen(root, back) {
     const unsub = Input.on(({ midi }) => {
       if (!cur || left <= 0) return;
       if (cfg.answer === 'keys') answer(((midi - cur.p.midi) % 12 + 12) % 12 === 0);
-      else if (cfg.answer === 'play') answer(midi === cur.p.midi);
+      else if (cfg.answer === 'play') answer(midi === cur.p.midi + (bass ? TRANSPOSE : 0));
     });
     root.onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -175,8 +182,10 @@ export function earScreen(root, back) {
       if (b.dataset.a === 'go') round();
     };
   };
+  const bass = S.instrument === 'bass';
   async function round() {
     await unlockAudio();
+    Listener.mode = bass ? 'bass' : 'piano';
     if (st.mode === 'nachspielen' && S.settings.input === 'mic') { try { await Listener.start(); Listener.sens = S.settings.sens; } catch (e) { /* Touch */ } }
     let q = 0, right = 0, cur = null, answered = false, unsub = null;
     root.innerHTML = `
@@ -192,13 +201,13 @@ export function earScreen(root, back) {
       </div>`;
     const $ = s => root.querySelector(s);
     let kb = null;
-    if (st.mode === 'nachspielen') kb = new Keyboard($('.kb'), 60, 71);
+    if (st.mode === 'nachspielen') kb = bass ? new Fingerboard($('.kb'), { tol: 25 }) : new Keyboard($('.kb'), 60, 71);
     else $('.kb').remove();
     const play = () => {
       const c = getCtx(); const t = c.currentTime + 0.05;
       Listener.muted = true;
       let end = 0;
-      if (cur.type === 'seq') cur.notes.forEach((m, i) => { Synth.note(m, t + i * 0.7, 0.6); end = (i + 1) * 0.7; });
+      if (cur.type === 'seq') cur.notes.forEach((m, i) => { if (bass && st.mode === 'nachspielen') Synth.bass(m, t + i * 0.7, 0.6, true, 0.9); else Synth.note(m, t + i * 0.7, 0.6); end = (i + 1) * 0.7; });
       if (cur.type === 'chord') { cur.notes.forEach((m, i) => Synth.note(m, t + i * 0.35, 0.4)); Synth.chord(cur.notes, t + 1.2, 1.2); end = 2.5; }
       setTimeout(() => (Listener.muted = false), end * 1000 + 300);
     };
@@ -223,11 +232,11 @@ export function earScreen(root, back) {
         cur = { type: 'chord', notes: [base, base + (dur ? 4 : 3), base + 7], ans: dur ? 'dur' : 'moll' };
         html = '<button class="ans" data-ans="dur">Dur</button><button class="ans" data-ans="moll">Moll</button>';
       } else {
-        const pool = [60, 62, 64, 65, 67];
+        const pool = bass ? [38, 40, 42, 43, 45] : [60, 62, 64, 65, 67];
         const notes = [rand(pool)];
         while (notes.length < 3) { const n = rand(pool); if (n !== notes.at(-1)) notes.push(n); }
         cur = { type: 'seq', notes, pos: 0, errs: 0 };
-        html = '<p class="muted center">Töne aus der C-Lage (C bis G). Der erste Ton ist ' + midiName(notes[0]) + '.</p>';
+        html = '<p class="muted center">' + (bass ? 'Töne aus der I. Lage (D-Saite bis A auf der G-Saite)' : 'Töne aus der C-Lage (C bis G)') + '. Der erste Ton ist ' + midiName(notes[0]) + '.</p>';
         Listener.setExpected([notes[0]]);
       }
       $('.answers').innerHTML = html;

@@ -1,5 +1,5 @@
 // Fortschritt, XP, Streak, Erfolge, Sync-Code
-import { WORLDS, allSteps, LEVEL_TITLES } from './curriculum.js';
+import { WORLDS, BASS_WORLDS, worldsFor, allSteps, LEVEL_TITLES } from './curriculum.js';
 
 const KEY = 'klavier-quest-v1';
 const today = () => new Date().toLocaleDateString('sv-SE');           // YYYY-MM-DD lokal
@@ -7,6 +7,7 @@ const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); retu
 
 const DEFAULT = () => ({
   v: 1,
+  instrument: 'piano',
   xp: 0,
   steps: {},          // stepId -> Sterne (0..3), Theorie: 1
   bosses: {},         // worldId -> true
@@ -16,7 +17,7 @@ const DEFAULT = () => ({
   ach: {},
   settings: {
     input: 'mic', sens: 0.55, latency: 90, chord: 'normal', hints: 'auto',
-    metronome: true, goal: 60, touchSound: true,
+    metronome: true, goal: 60, touchSound: true, inton: 'streng', accomp: true,
   },
   updated: Date.now(),
 });
@@ -102,17 +103,19 @@ export function recordStep(id, st) {
   save();
   return { first: prev === 0 && st > 0, improved: st > prev };
 }
-export function worldUnlocked(i) { return i === 0 || !!S.bosses[WORLDS[i - 1].id]; }
+const CW = () => worldsFor(S.instrument);
+export function worldUnlocked(i) { return i === 0 || !!S.bosses[CW()[i - 1].id]; }
 export function lessonUnlocked(wi, li) {
   if (!worldUnlocked(wi)) return false;
   if (li === 0) return true;
-  const prev = WORLDS[wi].lessons[li - 1];
+  const prev = CW()[wi].lessons[li - 1];
   return prev.steps.every(s => stars(s.id) > 0);
 }
 export function lessonDone(l) { return l.steps.every(s => stars(s.id) > 0); }
 export function nextStep() {
-  for (let wi = 0; wi < WORLDS.length; wi++) {
-    const w = WORLDS[wi];
+  const WS = CW();
+  for (let wi = 0; wi < WS.length; wi++) {
+    const w = WS[wi];
     if (!worldUnlocked(wi)) break;
     for (let li = 0; li < w.lessons.length; li++) {
       const l = w.lessons[li];
@@ -131,6 +134,7 @@ export const ACHIEVEMENTS = [
   { id: 'stars30', t: 'Sternenhimmel', d: '30 Sterne gesammelt', ok: () => totalStars() >= 30 },
   { id: 'stars80', t: 'Milchstraße', d: '80 Sterne gesammelt', ok: () => totalStars() >= 80 },
   ...WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Comeback geschafft', 'Beidhändig', 'Tonarten-Meister', 'Akkord-Ass', 'In Bewegung', 'Ausdrucksstark'][i], d: `Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
+  ...BASS_WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Erster Strich', 'Fundament', 'Taktgeber', 'Walker', 'Lagen-Profi', 'Bass-Held'][i], d: `Kontrabass: Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
   { id: 'streak3', t: 'Dranbleiber', d: '3 Tage Serie', ok: () => S.streak.best >= 3 },
   { id: 'streak7', t: 'Wochenheld', d: '7 Tage Serie', ok: () => S.streak.best >= 7 },
   { id: 'streak30', t: 'Unaufhaltsam', d: '30 Tage Serie', ok: () => S.streak.best >= 30 },
@@ -174,6 +178,7 @@ export function importCode(code) {
   if (d.streak && (d.streak.last || '') >= (S.streak.last || '')) S.streak = { ...d.streak, best: Math.max(d.streak.best || 0, S.streak.best) };
   for (const k of Object.keys(S.stats)) S.stats[k] = Math.max(S.stats[k] || 0, d.stats?.[k] || 0);
   if (d.settings && d.updated > S.updated) S.settings = { ...S.settings, ...d.settings, input: S.settings.input };
+  if (d.instrument && d.updated > S.updated) S.instrument = d.instrument;
   rollDay();
   save();
 }

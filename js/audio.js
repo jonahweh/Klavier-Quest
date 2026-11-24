@@ -19,7 +19,7 @@ export async function unlockAudio() {
 export const Input = {
   subs: new Set(),
   on(fn) { this.subs.add(fn); return () => this.subs.delete(fn); },
-  emit(midi, source, t = performance.now() / 1000) { for (const f of this.subs) f({ midi, source, t }); },
+  emit(midi, source, t = performance.now() / 1000, extra = {}) { for (const f of this.subs) f({ midi, source, t, ...extra }); },
 };
 
 // ---------------- Klavierklang ----------------
@@ -35,13 +35,13 @@ export const Synth = {
     this.out.connect(comp); comp.connect(c.destination);
     this.listeners = new Set();
   },
-  note(midi, when = 0, dur = 0.5, vel = 0.8) {
+  note(midi, when = 0, dur = 0.5, vel = 0.8, dest = null) {
     this.init();
     const c = getCtx();
     const t0 = Math.max(c.currentTime, when || c.currentTime);
     const f = midiToFreq(midi);
     const g = c.createGain();
-    g.connect(this.out);
+    g.connect(dest || this.out);
     const peak = 0.22 * vel;
     const decay = Math.max(0.5, 2.6 - (midi - 48) * 0.035);
     g.gain.setValueAtTime(0.0001, t0);
@@ -73,7 +73,67 @@ export const Synth = {
     const ng = c.createGain(); ng.gain.value = 0.25 * vel;
     n.connect(bp); bp.connect(ng); ng.connect(g); n.start(t0);
   },
-  chord(midis, when, dur, vel) { midis.forEach(m => this.note(m, when, dur, vel)); },
+  chord(midis, when, dur, vel, dest) { midis.forEach(m => this.note(m, when, dur, vel, dest)); },
+  // Kontrabass-Klang: pizz = gezupft, sonst gestrichen
+  bass(midi, when = 0, dur = 0.8, pizz = true, vel = 0.8, dest = null) {
+    this.init();
+    const c = getCtx();
+    const t0 = Math.max(c.currentTime, when || c.currentTime);
+    const f = midiToFreq(midi);
+    const g = c.createGain();
+    g.connect(dest || this.out);
+    if (pizz) {
+      const peak = 0.5 * vel;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+      g.gain.setTargetAtTime(peak * 0.3, t0 + 0.01, 0.35);
+      g.gain.setTargetAtTime(0.0001, t0 + Math.max(dur, 0.25), 0.18);
+      [1, 0.7, 0.35, 0.22, 0.1].forEach((a, i) => {
+        const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f * (i + 1);
+        const pg = c.createGain(); pg.gain.setValueAtTime(a, t0); pg.gain.setTargetAtTime(a * 0.1, t0, 0.5 / (i + 1));
+        o.connect(pg); pg.connect(g); o.start(t0); o.stop(t0 + dur + 1.2);
+      });
+    } else {
+      const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const v = c.createOscillator(); v.frequency.value = 5; const vg = c.createGain(); vg.gain.value = f * 0.003;
+      v.connect(vg); vg.connect(o.frequency);
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700 + f * 2; lp.Q.value = 0.8;
+      const peak = 0.28 * vel;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(peak, t0 + 0.07);
+      g.gain.setValueAtTime(peak, t0 + Math.max(0.08, dur - 0.05));
+      g.gain.linearRampToValueAtTime(0.0001, t0 + dur + 0.15);
+      o.connect(lp); lp.connect(g); o.start(t0); v.start(t0); o.stop(t0 + dur + 0.2); v.stop(t0 + dur + 0.2);
+    }
+  },
+  noiseBuf() {
+    if (this._nb) return this._nb;
+    const c = getCtx(), b = c.createBuffer(1, c.sampleRate, c.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return (this._nb = b);
+  },
+  drum(kind, when, vel = 0.7, dest = null) {
+    this.init();
+    const c = getCtx();
+    const t0 = Math.max(c.currentTime, when);
+    const out = c.createGain(); out.connect(dest || this.out);
+    if (kind === 'kick') {
+      const o = c.createOscillator(); o.frequency.setValueAtTime(130, t0); o.frequency.exponentialRampToValueAtTime(42, t0 + 0.12);
+      out.gain.setValueAtTime(0.9 * vel, t0); out.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+      o.connect(out); o.start(t0); o.stop(t0 + 0.32);
+      return;
+    }
+    const n = c.createBufferSource(); n.buffer = this.noiseBuf();
+    const f = c.createBiquadFilter();
+    let len = 0.08, v = vel;
+    if (kind === 'snare') { f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.7; len = 0.18; v *= 0.55;
+      const o = c.createOscillator(); o.frequency.value = 190; const og = c.createGain(); og.gain.setValueAtTime(0.3 * vel, t0); og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1); o.connect(og); og.connect(out); o.start(t0); o.stop(t0 + 0.12); }
+    else if (kind === 'hat') { f.type = 'highpass'; f.frequency.value = 7500; len = 0.05; v *= 0.25; }
+    else if (kind === 'ride') { f.type = 'bandpass'; f.frequency.value = 5200; f.Q.value = 1.5; len = 0.4; v *= 0.22; }
+    else if (kind === 'brush') { f.type = 'bandpass'; f.frequency.value = 3000; f.Q.value = 0.5; len = 0.12; v *= 0.18; }
+    const g = c.createGain(); g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + len);
+    n.connect(f); f.connect(g); g.connect(out); n.start(t0, Math.random() * 0.5); n.stop(t0 + len + 0.02);
+  },
   click(when = 0, accent = false) {
     this.init();
     const c = getCtx();
@@ -131,6 +191,74 @@ export const Listener = {
     this.running = false;
   },
   setExpected(midis) { this.expected = midis || []; },
+  mode: 'piano',
+  onPitch: null,
+  // Kontrabass: tiefe Töne (E1 = 41 Hz), einstimmig, mit Cent-Abweichung
+  yinLow() {
+    const D = 3, N = 2048, td = this.td, off = td.length - N * D;
+    const x = this.decL || (this.decL = new Float32Array(N));
+    for (let i = 0; i < N; i++) { const j = off + i * D; x[i] = (td[j] + td[j + 1] + td[j + 2]) / 3; }
+    const sr = this.sr / D;
+    const tauMin = Math.floor(sr / 420), tauMax = Math.ceil(sr / 37);
+    const W = N - tauMax;
+    const d = this.yinL || (this.yinL = new Float32Array(tauMax + 2));
+    d[0] = 1;
+    let run = 0;
+    for (let tau = 1; tau <= tauMax; tau++) {
+      let s = 0;
+      for (let i = 0; i < W; i++) { const v = x[i] - x[i + tau]; s += v * v; }
+      run += s;
+      d[tau] = run ? s * tau / run : 1;
+    }
+    let tau = -1;
+    for (let t = tauMin; t < tauMax; t++) {
+      if (d[t] < 0.12) { while (t + 1 < tauMax && d[t + 1] < d[t]) t++; tau = t; break; }
+    }
+    if (tau < 0) {
+      let best = 1, bt = -1;
+      for (let t = tauMin; t < tauMax; t++) if (d[t] < best) { best = d[t]; bt = t; }
+      if (best > 0.3) return null;
+      tau = bt;
+    }
+    const a = d[tau - 1], b = d[tau], c = d[tau + 1];
+    const den = a + c - 2 * b;
+    const t2 = den ? tau + (a - c) / (2 * den) : tau;
+    return { midi: freqToMidi(sr / t2), clarity: 1 - b };
+  },
+  peakLoose(f) {
+    const k = f / this.binHz, w = Math.max(1, k * 0.03);
+    let mx = -300;
+    for (let i = Math.max(1, Math.floor(k - w)); i <= Math.min(this.fd.length - 1, Math.ceil(k + w)); i++) if (this.fd[i] > mx) mx = this.fd[i];
+    return mx;
+  },
+  tickBass(now, gate, onset) {
+    this.an.getFloatFrequencyData(this.fd);
+    let gmax = -300;
+    for (let i = 2, e = Math.floor(2000 / this.binHz); i < e; i++) if (this.fd[i] > gmax) gmax = this.fd[i];
+    this.gmax = gmax;
+    const y = gate ? this.yinLow() : null;
+    this.pitch = y;
+    if (this.onPitch) this.onPitch(y && y.clarity > 0.82 ? y : null);
+    const H = this.bh || (this.bh = []);
+    H.push(y && y.clarity > 0.85 ? { m: Math.round(y.midi), c: (y.midi - Math.round(y.midi)) * 100, t: now } : null);
+    if (H.length > 4) H.shift();
+    if (onset) this.bOnset = now;
+    if (!gate) { this.bLast = null; return; }
+    const L = H.slice(-3);
+    if (L.length < 3 || L.some(h => !h)) return;
+    let m = L[2].m;
+    if (!L.every(h => h.m === m)) return;
+    // Oktavfehler: Grundton schwach, YIN hört die Oktave
+    if (this.expected.length && !this.expected.includes(m) && this.expected.includes(m - 12)) {
+      if (this.peakLoose(midiToFreq(m - 12)) > gmax - 32) m -= 12;
+    }
+    const newOnset = this.bOnset && this.bOnset > (this.bLastT || 0);
+    if (this.bLast === m && !newOnset) return;
+    this.bLast = m; this.bLastT = now;
+    const cents = L.map(h => h.c).sort((a, b) => a - b)[1];
+    const t = this.bOnset && now - this.bOnset < 0.3 ? this.bOnset : L[0].t;
+    Input.emit(m, 'mic', t, { cents });
+  },
 
   // dB-Wert eines echten Spektral-Maximums nahe f (±¼ Halbton), sonst -200
   peak(f) {
@@ -215,6 +343,7 @@ export const Listener = {
     if (onset) this.lastOnset = now;
     if (this.onLevel) this.onLevel(lvl, this.noise, gate);
     if (this.muted || now < (this.muteUntil || 0)) return;
+    if (this.mode === 'bass') return this.tickBass(now, gate, onset);
 
     an.getFloatFrequencyData(this.fd);
     const a0 = Math.floor(50 / this.binHz), b0 = Math.floor(5000 / this.binHz);
@@ -266,6 +395,64 @@ export const Listener = {
     }
   // alte Zustände abbauen
     for (const [m, st] of this.state) if (!cands.has(m)) { st.on = false; }
+  },
+};
+
+// ---------------- Begleitung (Klavier + Schlagzeug) ----------------
+export const Accomp = {
+  run: null,
+  // chords: [{beat, dur, chord:{root, iv}}]
+  schedule(chords, spb, t0, style = 'straight', measure = 4, vol = 0.55) {
+    this.stop();
+    Synth.init();
+    const c = getCtx();
+    const g = c.createGain(); g.gain.value = vol; g.connect(Synth.out);
+    this.run = g;
+    const voice = ch => {
+      const tones = ch.iv.map(i => ch.root + i);
+      return tones.map(pc => { let m = 55 + ((pc - 55) % 12 + 12) % 12; return m; }).sort((a, b) => a - b);
+    };
+    const T = b => t0 + b * spb;
+    for (const k of chords) {
+      const v = voice(k.chord);
+      const end = k.beat + k.dur;
+      if (style === 'swing') {
+        for (let b = Math.ceil(k.beat); b < end - 1e-6; b++) {
+          const inBar = ((b % measure) + measure) % measure;
+          if (inBar === 1 || inBar === 3) Synth.chord(v, T(b), spb * 0.35, 0.45, g);
+        }
+      } else if (style === 'straight') {
+        for (let b = Math.ceil(k.beat); b < end - 1e-6; b += 2) Synth.chord(v, T(b), spb * 1.6, 0.42, g);
+      } else if (style === 'waltz') {
+        for (let b = Math.ceil(k.beat); b < end - 1e-6; b++) if (((b % measure) + measure) % measure) Synth.chord(v, T(b), spb * 0.5, 0.42, g);
+      } else {
+        v.forEach((m, i) => Synth.note(m, T(k.beat) + i * 0.04, k.dur * spb * 0.95, 0.38, g));
+      }
+    }
+    // Schlagzeug
+    if (style === 'swing' || style === 'straight' || style === 'waltz') {
+      const total = chords.length ? chords[chords.length - 1].beat + chords[chords.length - 1].dur : 0;
+      for (let b = 0; b < total - 1e-6; b++) {
+        const inBar = ((b % measure) + measure) % measure;
+        if (style === 'swing') {
+          Synth.drum('ride', T(b), 0.8, g);
+          if (inBar === 1 || inBar === 3) { Synth.drum('ride', T(b + 2 / 3), 0.5, g); Synth.drum('hat', T(b), 0.6, g); }
+          if (inBar === 0) Synth.drum('kick', T(b), 0.25, g);
+        } else if (style === 'straight') {
+          Synth.drum('hat', T(b), 0.7, g); Synth.drum('hat', T(b + 0.5), 0.45, g);
+          if (inBar === 0 || inBar === 2) Synth.drum('kick', T(b), 0.6, g);
+          if (inBar === 1 || inBar === 3) Synth.drum('snare', T(b), 0.6, g);
+        } else {
+          if (inBar === 0) Synth.drum('kick', T(b), 0.4, g);
+          Synth.drum('brush', T(b), inBar === 0 ? 0.8 : 0.5, g);
+        }
+      }
+    }
+  },
+  stop() {
+    if (!this.run) return;
+    try { this.run.gain.setValueAtTime(0, getCtx().currentTime); this.run.disconnect(); } catch (e) { /* egal */ }
+    this.run = null;
   },
 };
 

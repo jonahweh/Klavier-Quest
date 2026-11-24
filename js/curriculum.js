@@ -1,4 +1,5 @@
 // Lehrplan: Welten → Lektionen → Schritte. Theorie-Karten mit Beispielen zum Anhören.
+import { BASS_WORLDS, BASS_THEORY } from './bass-curriculum.js';
 
 const C_POS_T = ['C4', 'D4', 'E4', 'F4', 'G4'];
 const C_POS_B = ['C3', 'D3', 'E3', 'F3', 'G3'];
@@ -223,10 +224,14 @@ export const WORLDS = [
   },
 ];
 
-// Alle Schritte mit IDs
+export const worldsFor = inst => (inst === 'bass' ? BASS_WORLDS : WORLDS);
+export const ALL_THEORY = { ...THEORY, ...BASS_THEORY };
+export { BASS_WORLDS };
+
+// Alle Schritte mit IDs (beide Instrumente)
 export function allSteps() {
   const out = [];
-  for (const w of WORLDS) {
+  for (const w of [...WORLDS, ...BASS_WORLDS]) {
     for (const l of w.lessons) for (const s of l.steps) out.push({ ...s, world: w.id, lesson: l.id });
     out.push({ type: 'piece', id: 'boss-' + w.id, piece: w.boss, boss: true, world: w.id });
   }

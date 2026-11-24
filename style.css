@@ -156,6 +156,10 @@ p { margin: 0 0 .7em; }
 .staff .rs { fill: var(--ink2); }
 .staff .fg { font-weight: 700; font-family: Manrope, sans-serif; fill: var(--ink2); text-anchor: middle; }
 .staff .nm { font-weight: 800; font-family: Manrope, sans-serif; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: var(--ink); stroke-linejoin: round; }
+.staff .pl { font-weight: 800; font-family: Manrope, sans-serif; fill: var(--accent); text-anchor: middle; }
+.staff .bw { fill: var(--ink2); }
+.staff .tq { font-style: italic; font-weight: 700; font-family: Georgia, serif; fill: var(--ink); }
+.staff .ch { font-weight: 800; font-family: Manrope, sans-serif; fill: var(--ink); }
 .staff .mn { font: 600 11px Manrope, sans-serif; fill: var(--ink3); }
 .staff .ev.cur .hd, .staff .ev.cur .sm, .staff .ev.cur .ac, .staff .ev.next .hd, .staff .ev.next .sm { fill: var(--accent); }
 .staff .ev.cur .nm { stroke: var(--accent); }
@@ -333,4 +337,56 @@ textarea.code { width: 100%; font: 13px ui-monospace, Menlo, monospace; padding:
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Kontrabass: Griffbrett & Stimmgerät ---------- */
+.seg.inst { margin-left: auto; margin-right: 8px; }
+.fb-host { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 10px; overflow: visible; height: auto; align-items: center; }
+.fb-board { position: relative; min-width: 0; aspect-ratio: 1000 / 210; max-height: 26vh; margin: 0 auto; width: 100%; }
+.fbsvg { width: 100%; height: 100%; display: block; touch-action: none; cursor: pointer; }
+.fb-wood { fill: #23201d; }
+.fb-nut { fill: #e9e3d6; }
+.fb-str { stroke: #d9cbb0; stroke-linecap: round; }
+.fb-pos { stroke: rgba(255,255,255,.22); stroke-width: 2; stroke-dasharray: 3 5; }
+.fb-semi { stroke: rgba(255,255,255,.06); stroke-width: 1; }
+.fb-pl { font: 800 13px Manrope, sans-serif; fill: var(--ink2); text-anchor: middle; }
+.fb-sn { font: 800 15px Manrope, sans-serif; fill: var(--ink2); text-anchor: middle; }
+.fb-dot { fill: var(--accent); stroke: #fff; stroke-width: 3; }
+.fb-dt { font: 800 17px Manrope, sans-serif; fill: #fff; text-anchor: middle; pointer-events: none; }
+.fb-dn { font: 800 15px Manrope, sans-serif; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: var(--accent); stroke-width: 5px; }
+.fb-open { stroke: var(--accent); stroke-width: 7; stroke-linecap: round; opacity: .85; }
+.fb-gh { fill: none; stroke-width: 4; }
+.fb-gh.ok { stroke: var(--ok); }
+.fb-gh.bad { stroke: var(--bad); }
+.tuner { background: var(--paper); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.tu-note { font-size: 34px; font-weight: 800; line-height: 1; text-align: center; color: var(--ink3); }
+.tu-live .tu-note { color: var(--ink); }
+.tu-bar { position: relative; height: 26px; background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.tu-zone { position: absolute; top: 0; bottom: 0; background: var(--ok-soft); }
+.tu-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ok); }
+.tu-needle { position: absolute; left: 50%; top: 2px; bottom: 2px; width: 5px; margin-left: -2.5px; border-radius: 3px; background: var(--bad); transition: left .08s; opacity: 0; }
+.tu-needle.ok { background: var(--ok); }
+.tu-live .tu-needle { opacity: 1; }
+.tu-txt { font-size: 13px; font-weight: 700; text-align: center; color: var(--ink2); min-height: 18px; }
+.tu-txt.good { color: var(--ok); }
+.tu-txt.bad { color: var(--bad); }
+.tuner-big { margin: 18px 0; }
+.tuner-big .fb-host { height: auto; grid-template-columns: 1fr; }
+.tuner-big .fb-board { display: none; }
+.tuner-big .tu-note { font-size: 64px; }
+.tuner-big .tu-bar { height: 40px; }
+.tuner-big .tu-txt { font-size: 17px; }
+.ref-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.tog.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.inton-line { margin: 12px 0 0; font-size: 14px; color: var(--ink2); }
+@media (max-width: 700px) {
+  .fb-host { grid-template-columns: 1fr; height: auto; }
+  .fb-board { aspect-ratio: auto; height: 132px; max-height: none; overflow-x: auto; scrollbar-width: none; }
+  .fbsvg { width: 629px; height: 132px; }
+  .tuner { flex-direction: row; align-items: center; padding: 8px 10px; }
+  .tu-note { font-size: 22px; min-width: 54px; }
+  .tu-bar { flex: 1; }
+  .tu-txt { min-width: 92px; }
+  .seg.inst { order: 3; margin: 0; width: 100%; }
+  .seg.inst button { flex: 1; }
 }

@@ -35,15 +35,15 @@ export function parseVoice(str, staff) {
   for (const raw of str.trim().split(/\s+/)) {
     if (!raw) continue;
     if (raw === '|') { barChecks.push(beat); continue; }
-    const m = /^([^:/]+)(?::([\d,]+))?(?:\/([whqes])(\.)?)?$/.exec(raw);
+    const m = /^([^:/@]+)(?::([\d,]+))?(?:@([du]))?(?:\/([whqes])(\.)?)?$/.exec(raw);
     if (!m) throw new Error('Ungültiges Token: ' + raw);
-    if (m[3]) dur = DUR[m[3]] * (m[4] ? 1.5 : 1);
+    if (m[4]) dur = DUR[m[4]] * (m[5] ? 1.5 : 1);
     if (m[1] === 'r') {
       out.push({ beat, dur, staff, rest: true, pitches: [] });
     } else {
       const fingers = m[2] ? m[2].split(',').map(Number) : [];
       const pitches = m[1].split('+').map((p, i) => ({ ...parsePitch(p), finger: fingers[i] }));
-      out.push({ beat, dur, staff, rest: false, pitches });
+      out.push({ beat, dur, staff, rest: false, pitches, bow: m[3] || null });
     }
     beat += dur;
   }
@@ -73,12 +73,14 @@ export function buildScore(piece) {
     for (const p of n.pitches) if (!e.midis.includes(p.midi)) e.midis.push(p.midi);
   }
   const events = [...map.values()].sort((a, b) => a.beat - b.beat);
-  events.forEach((e, i) => { e.i = i; e.midis.sort((a, b) => a - b); e.notes.forEach(n => (n.ev = i)); });
-  const all = notes.flatMap(n => n.pitches.map(p => p.midi));
+  const tr = piece.transpose || 0;
+  events.forEach((e, i) => { e.i = i; e.midis = e.midis.map(m => m + tr).sort((a, b) => a - b); e.notes.forEach(n => (n.ev = i)); });
+  const all = notes.flatMap(n => n.pitches.map(p => p.midi + tr));
   return {
     ts, key: piece.key || 'C', tempo: piece.tempo || 80, staves, notes, events, total,
     measure: ts[0] * 4 / ts[1],
     lo: Math.min(...all), hi: Math.max(...all),
+    transpose: tr, tech: piece.tech || null, style: piece.style2 || null, chordStr: piece.chords || null,
   };
 }
 

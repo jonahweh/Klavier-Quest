@@ -1,6 +1,8 @@
 // Klavier-Quest – Hauptprogramm: Übersicht, Lektionen, Theorie, Ergebnisse, Erfolge, Einstellungen
-import { WORLDS, THEORY } from './curriculum.js';
-import { PIECES } from './pieces.js';
+import { worldsFor, ALL_THEORY as THEORY } from './curriculum.js';
+import { PIECES as PIANO_PIECES } from './pieces.js';
+import { BASS_PIECES } from './bass-pieces.js';
+import { applyFingering, parseChords, chordLabel, TRANSPOSE, Fingerboard, OPEN, STRING_NAMES } from './bass.js';
 import { buildScore, generateDrill, midiLabel } from './score.js';
 import { renderScore } from './notation.js';
 import { Synth, Listener, Midi, getCtx, unlockAudio } from './audio.js';
@@ -11,6 +13,9 @@ import {
   totalStars, ACHIEVEMENTS, setNotifier, exportCode, importCode, resetAll, taskDone, checkAchievements,
 } from './store.js';
 
+const PIECES = { ...PIANO_PIECES, ...BASS_PIECES };
+const W = () => worldsFor(S.instrument);
+const isBass = () => S.instrument === 'bass';
 const app = document.getElementById('app');
 const toasts = document.getElementById('toasts');
 let current = null;   // aktiver Player
@@ -53,6 +58,10 @@ function home() {
   <div class="page home">
     <header class="top">
       <div class="logo">${LOGO}<span>Klavier-Quest</span></div>
+      <div class="seg inst" role="tablist" aria-label="Instrument">
+        <button data-inst="piano" class="${isBass() ? '' : 'on'}">Klavier</button>
+        <button data-inst="bass" class="${isBass() ? 'on' : ''}">Kontrabass</button>
+      </div>
       <div class="chips">
         <span class="chip streak ${S.streak.count ? 'hot' : ''}" title="Tage in Folge">${ICON.flame}<b>${S.streak.count}</b></span>
         <span class="chip lvl" title="${lv.into} / ${lv.need} XP bis zum nächsten Level"><b>Lv ${lv.level}</b> ${esc(lv.title)}<i style="--p:${lv.pct}"></i></span>
@@ -75,24 +84,27 @@ function home() {
     </section>
 
     <section class="worlds">
-      <div class="sec-head"><h2>Deine Reise</h2><span class="muted">${totalStars()} Sterne · Schon fit? Jeder Boss ist direkt spielbar.</span></div>
-      ${WORLDS.map((w, wi) => worldCard(w, wi)).join('')}
+      <div class="sec-head"><h2>Deine Reise · ${isBass() ? 'Kontrabass' : 'Klavier'}</h2><span class="muted">${totalStars()} Sterne · Schon fit? Jeder Boss ist direkt spielbar.</span></div>
+      ${W().map((w, wi) => worldCard(w, wi)).join('')}
       <div class="world future"><div class="w-head"><span class="w-num">7+</span><div><h3>Pro · Ultra-God</h3><p>Weitere Welten folgen, sobald du hier durch bist.</p></div></div></div>
     </section>
 
     <section class="extras">
       <button class="extra" data-go="sprint">${ICON.bolt}<b>Notenlese-Sprint</b><span>Bestwert ${S.stats.sprintBest}</span></button>
       <button class="extra" data-go="ear">${ICON.ear}<b>Gehörtraining</b><span>${S.stats.earCorrect} richtig</span></button>
-      <button class="extra" data-go="library">${ICON.book}<b>Theorie</b><span>${Object.keys(THEORY).length} Karten</span></button>
+      ${isBass() ? `<button class="extra" data-go="tuner">${ICON.tuner}<b>Stimmgerät</b><span>E · A · D · G</span></button>` : ''}
+      <button class="extra" data-go="library">${ICON.book}<b>Theorie</b><span>${W().flatMap(w => w.lessons.flatMap(l => l.steps)).filter(s => s.type === 'theory').length} Karten</span></button>
       <button class="extra" data-go="ach">${ICON.trophy}<b>Erfolge</b><span>${Object.keys(S.ach).length}/${ACHIEVEMENTS.length}</span></button>
     </section>
     <footer class="foot">Fortschritt wird auf diesem Gerät gespeichert. Übertragen per Sync-Code in den Einstellungen.</footer>
   </div>`;
   app.onclick = e => {
-    const b = e.target.closest('[data-go],[data-lesson],[data-boss]');
+    const b = e.target.closest('[data-go],[data-lesson],[data-boss],[data-inst]');
     if (!b) return;
+    if (b.dataset.inst) { if (S.instrument !== b.dataset.inst) { S.instrument = b.dataset.inst; save(); } return home(); }
+    if (b.dataset.go === 'tuner') return tuner();
     if (b.dataset.lesson) { const [wi, li] = b.dataset.lesson.split('-').map(Number); return lessonScreen(wi, li); }
-    if (b.dataset.boss != null) return runStep(WORLDS[+b.dataset.boss], null, { type: 'piece', id: 'boss-' + WORLDS[+b.dataset.boss].id, piece: WORLDS[+b.dataset.boss].boss, boss: true });
+    if (b.dataset.boss != null) return runStep(W()[+b.dataset.boss], null, { type: 'piece', id: 'boss-' + W()[+b.dataset.boss].id, piece: W()[+b.dataset.boss].boss, boss: true });
     const g = b.dataset.go;
     if (g === 'settings') settings();
     if (g === 'sprint') sprintScreen(app, home);
@@ -115,7 +127,7 @@ function stepTitle(s) {
 }
 function findReview() {
   let best = null;
-  WORLDS.forEach(w => w.lessons.forEach(l => l.steps.forEach(s => {
+  W().forEach(w => w.lessons.forEach(l => l.steps.forEach(s => {
     if (s.type !== 'piece') return;
     const st = stars(s.id);
     if (st > 0 && st < 3 && (!best || st < best.st)) best = { st, world: w, lesson: l, step: s, title: PIECES[s.piece].title };
@@ -158,7 +170,7 @@ function worldCard(w, wi) {
 // ================= Lektion =================
 function lessonScreen(wi, li) {
   destroyPlayer();
-  const w = WORLDS[wi], l = w.lessons[li];
+  const w = W()[wi], l = w.lessons[li];
   app.innerHTML = `
   <div class="page narrow lesson" style="--wc:${w.color}">
     <header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button>
@@ -197,19 +209,23 @@ function runStep(world, lesson, step, back) {
     if (nxt) runStep(world, lesson, nxt, back); else back();
   }, back);
   let piece, title, sub;
+  const bass = world.id.startsWith('b');
   if (step.type === 'drill') {
     piece = generateDrill(step.cfg, Date.now());
+    if (bass) piece.tech = step.cfg.tech || 'arco';
     title = step.title; sub = 'Blattspiel-Übung · neue Noten bei jedem Versuch';
   } else {
     const p = PIECES[step.piece];
-    piece = p; title = p.title; sub = `${p.by} · ${p.style}${step.boss ? ' · Boss' : ''}`;
+    piece = p; title = p.title; sub = `${p.by} · ${p.style}${bass ? (p.tech === 'pizz' ? ' · Pizzicato' : ' · Arco') : ''}${step.boss ? ' · Boss' : ''}`;
   }
+  if (bass) piece = { ...piece, transpose: TRANSPOSE, staves: ['b'] };
   const score = buildScore(piece);
+  if (bass) applyFingering(score, world.maxPos || 9);
   destroyPlayer();
   app.innerHTML = '';
   app.onclick = null;
   current = new Player(app, {
-    score, title, sub, boss: !!step.boss, hint: step.boss ? Math.min(1, hintFor(world)) : hintFor(world),
+    score, title, sub, bass, boss: !!step.boss, hint: step.boss ? Math.min(1, hintFor(world)) : hintFor(world),
     onExit: back,
     onFinish: (res, pl) => results(world, lesson, step, res, pl, back),
   });
@@ -248,6 +264,7 @@ function results(world, lesson, step, res, pl, back) {
         <div><b>${res.best}</b><span>beste Combo</span></div>
         <div><b>+${gained}</b><span>XP</span></div>
       </div>
+      ${res.inton != null ? `<p class="inton-line">Intonation: im Schnitt <b>${res.inton} Cent</b> daneben${res.inton <= 10 ? ' – sehr sauber!' : res.inton <= 20 ? ' – gut.' : ' – achte auf die Nadel.'}</p>` : ''}
       ${note ? `<p class="note">${note}</p>` : ''}
       ${st > prev && prev > 0 ? '<p class="badge">Neuer Bestwert!</p>' : ''}
       <div class="row">
@@ -294,10 +311,13 @@ function theoryScreen(id, onDone, back) {
     ${t.example ? `<figure class="example"><div class="ex-scroll"><svg class="staff"></svg></div><button class="btn ghost" data-a="hear">${ICON.play} Beispiel anhören</button></figure>` : ''}
     <button class="btn primary big" data-a="ok">${onDone ? 'Verstanden – weiter' : 'Zurück'}</button>
   </div>`;
-  let sc = null;
+  let sc = null, chords = null;
+  const ro = () => ({ space: 11, pxPerBeat: 58, names: true, tall: !!t.bass, chords });
   if (t.example) {
-    sc = buildScore({ tempo: 80, ...t.example });
-    renderScore(app.querySelector('.staff'), sc, { space: 11, pxPerBeat: 58, names: true });
+    sc = buildScore({ tempo: 80, ...t.example, ...(t.bass ? { transpose: TRANSPOSE, staves: ['b'] } : {}) });
+    if (t.bass) applyFingering(sc, 9);
+    if (t.example.chords) chords = parseChords(t.example.chords, sc.measure).map(k => ({ ...k, label: chordLabel(k.chord.sym) }));
+    renderScore(app.querySelector('.staff'), sc, ro());
   }
   app.onclick = async e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -306,9 +326,11 @@ function theoryScreen(id, onDone, back) {
     if (b.dataset.a === 'hear' && sc) {
       await unlockAudio();
       const spb = 60 / sc.tempo, t0 = getCtx().currentTime + 0.1;
-      const els = renderScore(app.querySelector('.staff'), sc, { space: 11, pxPerBeat: 58, names: true }).evEls;
+      const els = renderScore(app.querySelector('.staff'), sc, ro()).evEls;
       sc.events.forEach((ev, i) => {
-        ev.notes.forEach(n => n.pitches.forEach(p => Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95)));
+        ev.notes.forEach(n => n.pitches.forEach(p => t.bass
+          ? Synth.bass(p.midi + TRANSPOSE, t0 + n.beat * spb, n.dur * spb * 0.9, sc.tech === 'pizz', 0.9)
+          : Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95)));
         setTimeout(() => { els.forEach(g => g?.classList.remove('cur')); els[i]?.classList.add('cur'); }, (ev.beat * spb + 0.1) * 1000);
       });
       setTimeout(() => els.forEach(g => g?.classList.remove('cur')), (sc.total * spb + 0.6) * 1000);
@@ -318,7 +340,7 @@ function theoryScreen(id, onDone, back) {
 function library() {
   destroyPlayer();
   const used = [];
-  WORLDS.forEach((w, wi) => w.lessons.forEach(l => l.steps.forEach(s => { if (s.type === 'theory') used.push({ id: s.card, w, wi, read: stars(s.id) > 0 }); })));
+  W().forEach((w, wi) => w.lessons.forEach(l => l.steps.forEach(s => { if (s.type === 'theory') used.push({ id: s.card, w, wi, read: stars(s.id) > 0 }); })));
   app.innerHTML = `
   <div class="page narrow">
     <header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button><h1>Theorie</h1></header>
@@ -343,6 +365,41 @@ function achievements() {
     <ul class="ach">${ACHIEVEMENTS.map(a => `<li class="${S.ach[a.id] ? 'got' : ''}"><span class="a-ico">${S.ach[a.id] ? ICON.trophy : ICON.lock}</span><div><b>${esc(a.t)}</b><span>${esc(a.d)}</span></div></li>`).join('')}</ul>
   </div>`;
   app.onclick = e => { if (e.target.closest('[data-a=back]')) home(); };
+}
+
+// ================= Stimmgerät =================
+function tuner() {
+  destroyPlayer();
+  app.innerHTML = `
+  <div class="page narrow">
+    <header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button><h1>Stimmgerät</h1></header>
+    <p class="lead">Streich oder zupf eine leere Saite. Die Nadel zeigt, ob sie zu hoch oder zu tief ist. Mit den Knöpfen hörst du den Referenzton.</p>
+    <div class="tuner-big"></div>
+    <div class="ref-row">${OPEN.map((m, i) => `<button class="btn ghost" data-ref="${m}">${STRING_NAMES[i]}-Saite</button>`).join('')}</div>
+    <button class="btn primary big" data-a="start">${ICON.mic} Mikrofon starten</button>
+  </div>`;
+  const host = app.querySelector('.tuner-big');
+  host.innerHTML = '<div class="kb"></div>';
+  const fb = new Fingerboard(host.firstChild, { tol: 5 });
+  Listener.mode = 'bass';
+  Listener.onPitch = p => {
+    if (p) {
+      // nächste leere Saite als Ziel
+      const near = OPEN.reduce((a, m) => (Math.abs(m - p.midi) < Math.abs(a - p.midi) ? m : a), OPEN[0]);
+      fb.target = Math.abs(near - p.midi) < 0.8 ? near : Math.round(p.midi);
+    }
+    fb.setPitch(p);
+  };
+  Listener.onLevel = null;
+  app.onclick = async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.a === 'back') { Listener.onPitch = null; return home(); }
+    if (b.dataset.ref) { await unlockAudio(); Synth.bass(+b.dataset.ref, 0, 2.2, false, 0.9); Listener.muteUntil = performance.now() / 1000 + 2.6; }
+    if (b.dataset.a === 'start') {
+      try { await Listener.start(); Listener.sens = S.settings.sens; b.textContent = 'Hört zu …'; b.disabled = true; }
+      catch (err) { b.textContent = 'Kein Mikrofon-Zugriff'; }
+    }
+  };
 }
 
 // ================= Einstellungen =================
@@ -382,6 +439,11 @@ function settings() {
       <label>Hilfen</label>
       ${seg('hints', [['auto', 'Automatisch'], ['2', 'Namen + Tasten'], ['1', 'Nur Tasten'], ['0', 'Keine']])}
       <p class="hint-line">Automatisch: In Welt 1 mit Notennamen, in Welt 2 nur leuchtende Tasten, danach ohne. Bleibst du hängen, hilft die App nach 7 Sekunden.</p>
+      <label>Intonation (Kontrabass)</label>
+      ${seg('inton', [['streng', 'Streng ±15 ct'], ['mittel', 'Mittel ±25 ct'], ['locker', 'Locker ±40 ct']])}
+      <label>Begleitung (Kontrabass, Rhythmus-Modus)</label>
+      ${seg('accomp', [[true, 'An'], [false, 'Aus']])}
+      <p class="hint-line">Klavier und Schlagzeug spielen mit. Am besten mit Kopfhörern, damit das Mikrofon nur deinen Bass hört.</p>
       <label>Metronom im Rhythmus-Modus</label>
       ${seg('metronome', [[true, 'An'], [false, 'Aus']])}
       <label>Ton bei Bildschirm-Tasten</label>
@@ -429,7 +491,7 @@ function settings() {
     const a = b.dataset.a;
     if (a === 'back') { Listener.onLevel = null; if (testing) { Listener.setExpected([]); } return home(); }
     if (a === 'mictest') {
-      try { await Listener.start(); Listener.sens = st.sens; testing = true; Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
+      try { Listener.mode = isBass() ? 'bass' : 'piano'; await Listener.start(); Listener.sens = st.sens; testing = true; Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
       catch (err) { $('.mt-note').textContent = 'Kein Zugriff aufs Mikrofon'; }
     }
     if (a === 'midi') {

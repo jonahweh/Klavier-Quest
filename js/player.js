@@ -1,6 +1,7 @@
 // Spieler: Noten anzeigen, Eingabe auswerten (Warte- und Rhythmus-Modus), Klaviatur
 import { renderScore } from './notation.js';
-import { Input, Listener, Synth, getCtx, unlockAudio } from './audio.js';
+import { Input, Listener, Synth, Accomp, getCtx, unlockAudio } from './audio.js';
+import { Fingerboard, parseChords, chordLabel, TOLERANCE } from './bass.js';
 import { midiName, midiLabel } from './score.js';
 import { S, save } from './store.js';
 
@@ -85,6 +86,10 @@ export class Player {
     this.tempoF = 1;
     this.hint = opt.hint ?? 0;
     this.running = false;
+    this.bass = !!opt.bass;
+    this.tol = TOLERANCE[S.settings.inton || 'streng'] || 15;
+    this.chords = this.score.chordStr ? parseChords(this.score.chordStr, this.score.measure).map(k => ({ ...k, label: chordLabel(k.chord.sym) })) : null;
+    this.accOn = S.settings.accomp !== false;
     this.build();
   }
 
@@ -108,11 +113,12 @@ export class Player {
             <button data-a="faster" aria-label="Schneller">+</button>
           </div>
           <div class="seg small">
-            <button data-hint="2" class="${this.hint === 2 ? 'on' : ''}" title="Notennamen + Tasten">Namen</button>
-            <button data-hint="1" class="${this.hint === 1 ? 'on' : ''}" title="Nur Tasten zeigen">Tasten</button>
+            <button data-hint="2" class="${this.hint === 2 ? 'on' : ''}" title="Notennamen + Griff">Namen</button>
+            <button data-hint="1" class="${this.hint === 1 ? 'on' : ''}" title="Nur Griff zeigen">${this.bass ? 'Griff' : 'Tasten'}</button>
             <button data-hint="0" class="${this.hint === 0 ? 'on' : ''}" title="Keine Hilfen">Ohne</button>
           </div>
           <button class="btn ghost" data-a="listen">${ICON.play} Anhören</button>
+          ${this.chords ? `<button class="btn ghost tog ${this.accOn ? 'on' : ''}" data-a="acc" title="Klavier und Schlagzeug im Rhythmus-Modus">Begleitung ${this.accOn ? 'an' : 'aus'}</button>` : ''}
           ${o.boss ? '<span class="boss-tag">Boss · Rhythmus-Modus, ab 2 Sternen geschafft</span>' : ''}
         </div>
         <div class="staff-wrap">
@@ -132,7 +138,7 @@ export class Player {
     this.svg = $('.staff');
     this.move = $('.staff-move');
     this.wrap = $('.staff-wrap');
-    this.kb = new Keyboard($('.kb'), this.score.lo, this.score.hi);
+    this.kb = this.bass ? new Fingerboard($('.kb'), { tol: this.tol }) : new Keyboard($('.kb'), this.score.lo, this.score.hi);
     this.layout();
     this.root.querySelector('.pl').addEventListener('click', e => this.onClick(e));
     this.unsub = Input.on(ev => this.onNote(ev));
@@ -152,8 +158,8 @@ export class Player {
   layout(keep) {
     const h = this.wrap.clientHeight || 300;
     const n = this.score.staves.length;
-    const space = Math.max(7, Math.min(n === 2 ? 17 : 24, (h - 8) / (n === 2 ? 27.5 : 17)));
-    this.L = renderScore(this.svg, this.score, { space, pxPerBeat: space * 6, names: this.hint >= 2 });
+    const space = Math.max(7, Math.min(n === 2 ? 17 : this.bass ? 19 : 24, (h - 8) / (n === 2 ? 27.5 : this.bass ? 20.8 : 17)));
+    this.L = renderScore(this.svg, this.score, { space, pxPerBeat: space * 6, names: this.hint >= 2, tall: this.bass, chords: this.chords });
     this.paint();
     if (keep) this.scrollTo(this.mode === 'wait' ? this.idx : null, true);
   }
@@ -194,6 +200,13 @@ export class Player {
       this.root.querySelector('.tv').textContent = this.bpm();
     }
     if (a === 'listen') this.preview();
+    if (a === 'acc') {
+      this.accOn = !this.accOn;
+      S.settings.accomp = this.accOn; save();
+      b.classList.toggle('on', this.accOn);
+      b.textContent = 'Begleitung ' + (this.accOn ? 'an' : 'aus');
+      if (!this.accOn) Accomp.stop();
+    }
     if (a === 'start') {
       if (this.running) { this.stop(); this.reset(); }
       else this.start();
@@ -207,6 +220,8 @@ export class Player {
     await this.ensureMic();
   }
   async ensureMic() {
+    Listener.mode = this.bass ? 'bass' : 'piano';
+    Listener.onPitch = this.bass ? p => this.kb.setPitch(p) : null;
     if (S.settings.input !== 'mic' || Listener.running) return true;
     try {
       await Listener.start();
@@ -263,8 +278,9 @@ export class Player {
 
   updateHint(force) {
     const e = this.ev?.[this.idx];
-    if (this.mode === 'wait' && e && (this.hint >= 1 || force)) this.kb.hint(e.midis, this.hint >= 2 || force);
+    if (this.mode === 'wait' && e && (this.hint >= 1 || force)) this.kb.hint(e.midis, this.hint >= 2 || force, e);
     else this.kb.hint([]);
+    if (this.bass && e) { this.kb.target = e.midis[0]; this.kb.grip = e.grip; }
   }
 
   feedback(t, cls = '', ms = 0) {
@@ -334,17 +350,32 @@ export class Player {
     this.$('[data-a=start]').innerHTML = `${ICON.play} Start`;
     cancelAnimationFrame(this.raf);
     clearInterval(this.stuckTimer);
+    Accomp.stop();
     Listener.setExpected([]);
     Listener.muted = false;
     this.unwake();
   }
 
   // ----- Warte-Modus -----
-  onNote({ midi, t, source }) {
+  onNote({ midi, t, source, cents }) {
     if (!this.running) return;
-    if (this.mode === 'rhythm') return this.onNoteRhythm(midi, t, source);
+    if (this.mode === 'rhythm') return this.onNoteRhythm(midi, t, source, cents);
     const e = this.ev[this.idx];
     if (!e) return;
+    if (e.midis.includes(midi) && this.bass && source === 'mic' && cents != null) {
+      const c = Math.round(cents), ac = Math.abs(c);
+      if (ac > 2 * this.tol) {
+        if (t - (this.lastWrong || 0) < 0.35) return;
+        this.lastWrong = t; e.tries++; this.combo = 0;
+        this.kb.flash(midi, 'bad');
+        this.feedback(`Richtiger Ton, aber ${ac} ct zu ${c > 0 ? 'hoch' : 'tief'} – nochmal sauberer.`, 'bad', 2200);
+        this.updateStats();
+        return;
+      }
+      e.inton = c;
+      e.intonPts = ac <= this.tol ? 1 : 0.6;
+      if (ac > this.tol) this.feedback(`Etwas zu ${c > 0 ? 'hoch' : 'tief'} (${ac} ct)`, 'tip', 1500);
+    }
     if (e.midis.includes(midi)) {
       e.hits[midi] = t;
       for (const k of Object.keys(e.hits)) if (t - e.hits[k] > 0.8) delete e.hits[k];
@@ -367,14 +398,15 @@ export class Player {
   }
   advance() {
     const e = this.ev[this.idx];
-    e.status = e.tries === 0 ? 'ok' : 'meh';
-    e.pts = e.tries === 0 ? 1 : e.tries === 1 ? 0.5 : 0.25;
+    const ip = e.intonPts ?? 1;
+    e.status = e.tries === 0 && ip === 1 ? 'ok' : 'meh';
+    e.pts = (e.tries === 0 ? 1 : e.tries === 1 ? 0.5 : 0.25) * ip;
     if (e.tries === 0) { this.combo++; this.best = Math.max(this.best, this.combo); }
     this.lastAdvance = performance.now() / 1000;
     this.idx++;
     this.evStart = this.lastAdvance;
     if (e.tries === 0 && this.combo > 0 && this.combo % 10 === 0) this.feedback(`${this.combo}er-Combo!`, 'good', 1500);
-    else if (e.tries === 0) this.feedback('', '');
+    else if (e.tries === 0 && ip === 1) this.feedback('', '');
     if (this.idx >= this.ev.length) { this.paint(); this.updateStats(); return this.finish(); }
     Listener.setExpected(this.ev[this.idx].midis);
     this.paint();
@@ -398,6 +430,7 @@ export class Player {
       const total = Math.ceil(this.score.total);
       for (let b = 0; b < total; b++) Synth.click(ctxStart + (countBeats + b) * spb, b % this.score.measure === 0);
     }
+    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.input === 'mic' ? 0.4 : 0.6);
     this.missIdx = 0;
     this.win = Math.max(0.22, Math.min(0.32, spb * 0.4));
     this.paint();
@@ -431,14 +464,14 @@ export class Player {
       if (this.hint >= 1) {
         const nx = this.ev.find(e => e.status === 'pending' && e.beat * spb > songT - this.win);
         const key = nx ? nx.i : -1;
-        if (key !== this._lastHint) { this._lastHint = key; this.kb.hint(nx ? nx.midis : [], this.hint >= 2); }
+        if (key !== this._lastHint) { this._lastHint = key; this.kb.hint(nx ? nx.midis : [], this.hint >= 2, nx); }
       }
       if (songT > this.score.total * spb + 0.6) return this.finish();
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
   }
-  onNoteRhythm(midi, t, source) {
+  onNoteRhythm(midi, t, source, cents) {
     const lat = source === 'mic' ? (S.settings.latency || 0) / 1000 : source === 'touch' ? 0.02 : 0;
     const songT = t - this.tStart - lat;
     let best = null, bd = 9;
@@ -462,6 +495,7 @@ export class Player {
       return;
     }
     best.hits[midi] = songT;
+    if (this.bass && source === 'mic' && cents != null) best.inton = Math.round(cents);
     this.kb.flash(midi, 'ok');
     if (this.satisfied(best, best.hits)) {
       const te = best.beat * this.spb;
@@ -471,10 +505,16 @@ export class Player {
       if (dt <= 0.08) { grade = 'Perfekt'; pts = 1; best.status = 'ok'; }
       else if (dt <= 0.16) { grade = 'Gut'; pts = 0.8; best.status = 'ok'; }
       else { grade = 'OK'; pts = 0.5; best.status = 'meh'; }
+      let itxt = '';
+      if (this.bass && best.inton != null) {
+        const ac = Math.abs(best.inton);
+        if (ac > 2 * this.tol) { pts *= 0.3; best.status = 'meh'; itxt = ` · ${ac} ct ${best.inton > 0 ? 'zu hoch' : 'zu tief'}`; }
+        else if (ac > this.tol) { pts *= 0.6; best.status = 'meh'; itxt = ` · etwas ${best.inton > 0 ? 'hoch' : 'tief'}`; }
+      }
       best.pts = pts;
       this.combo++; this.best = Math.max(this.best, this.combo);
       const early = Object.values(best.hits).reduce((a, h) => a + (h - te), 0) / dts.length;
-      this.feedback(grade + (grade !== 'Perfekt' ? (early < 0 ? ' · zu früh' : ' · zu spät') : ''), grade === 'OK' ? 'tip' : 'good', 700);
+      this.feedback(grade + (grade !== 'Perfekt' ? (early < 0 ? ' · zu früh' : ' · zu spät') : '') + itxt, grade === 'OK' || itxt ? 'tip' : 'good', 800);
       this.paint();
       this.updateStats();
     }
@@ -488,7 +528,12 @@ export class Player {
     const spb = 60 / this.bpm();
     const c = getCtx();
     const t0 = c.currentTime + 0.3;
-    for (const n of this.score.notes) if (!n.rest) for (const p of n.pitches) Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
+    const tr = this.score.transpose || 0;
+    for (const n of this.score.notes) if (!n.rest) for (const p of n.pitches) {
+      if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, n.dur * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
+      else Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
+    }
+    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, t0, this.score.style || 'straight', this.score.measure, 0.5);
     Listener.muted = true;
     this.$('.playhead').style.display = 'block';
     const p0 = performance.now() / 1000 + 0.3;
@@ -500,6 +545,7 @@ export class Player {
       if (s < this.score.total * spb + 0.5 && this.previewing) this.praf = requestAnimationFrame(loop);
       else {
         this.previewing = false;
+        Accomp.stop();
         Listener.muted = false;
         this.$('[data-a=listen]').disabled = false;
         this.reset();
@@ -518,6 +564,7 @@ export class Player {
       wrong: this.wrong + this.ev.reduce((a, e) => a + e.tries, 0),
       perfect: this.mode === 'rhythm' && this.ev.every(e => e.pts === 1) && this.wrong === 0,
       seconds: (performance.now() - this.t0wall) / 1000,
+      inton: this.bass ? (() => { const v = this.ev.filter(e => e.inton != null).map(e => Math.abs(e.inton)); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })() : null,
     };
     this.o.onFinish?.(res, this);
   }
@@ -532,7 +579,9 @@ export class Player {
     this.unsub?.();
     this.ro?.disconnect();
     Listener.onLevel = null;
+    Listener.onPitch = null;
     Listener.muted = false;
+    Accomp.stop();
   }
 }
 
@@ -555,5 +604,6 @@ export const ICON = {
   gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   piece: '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 9h8M8 12.5h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  tuner: '<svg viewBox="0 0 24 24"><path d="M4 16a8 8 0 0116 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 16l4-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16" r="1.8" fill="currentColor"/></svg>',
   drill: '<svg viewBox="0 0 24 24"><path d="M3 7h18M3 11h18M3 15h18" stroke="currentColor" stroke-width="1.6"/><ellipse cx="9" cy="13" rx="2.6" ry="2" fill="currentColor"/><path d="M11.4 13V4" stroke="currentColor" stroke-width="1.8"/><ellipse cx="16" cy="9" rx="2.6" ry="2" fill="currentColor"/><path d="M18.4 9V1.8" stroke="currentColor" stroke-width="1.8"/></svg>',
 };

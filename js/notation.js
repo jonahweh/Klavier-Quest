@@ -15,7 +15,7 @@ export function renderScore(svg, score, opt = {}) {
   const names = !!opt.names;
   const fingers = opt.fingers !== false;
   const staves = score.staves;
-  const T0 = Math.max(64, 6 * S);
+  const T0 = Math.max(64, (opt.tall ? 9.8 : 6) * S);
   const gap = 6.5 * S;
   const top = {};
   staves.forEach((st, i) => (top[st] = T0 + i * (4 * S + gap)));
@@ -60,6 +60,9 @@ export function renderScore(svg, score, opt = {}) {
   if (staves.length > 1) {
     out += `<rect class="ln" x="5" y="${top[staves[0]]}" width="2" height="${lastTop + 4 * S - top[staves[0]]}"/>`;
   }
+  // Spieltechnik (pizz./arco) und Akkordsymbole
+  if (score.tech) out += `<text class="tq" x="${H}" y="${T0 - (opt.tall ? 8.6 : 4.6) * S}" style="font-size:${(S * 1.05).toFixed(1)}px">${score.tech === 'pizz' ? 'pizz.' : 'arco'}</text>`;
+  if (opt.chords) for (const k of opt.chords) out += `<text class="ch" x="${H + k.beat * P - 4}" y="${T0 - (opt.tall ? 7.2 : 3.2) * S}" style="font-size:${(S * 1.05).toFixed(1)}px">${k.label}</text>`;
   // Taktstriche
   const bars = [];
   const L = score.measure;
@@ -147,17 +150,23 @@ export function renderScore(svg, score, opt = {}) {
         g += glyph(fl, sx, sy2, 'hd');
       }
     }
-    // Fingersatz
+    // Fingersatz, Lage, Bogenstrich
     if (fingers) {
-      const fs = heads.filter(h => h.finger).map(h => h.finger);
-      if (fs.length) {
+      const fs = heads.filter(h => h.finger != null).map(h => h.finger);
+      const above = st === 't' || staves.length === 1;
+      const fsz = (S * 0.9).toFixed(1);
+      if (fs.length || n.posLabel || n.bow) {
         const stTop = top[st], stBot = top[st] + 4 * S;
-        if (st === 't') {
-          const yy = Math.min(stTop - 0.9 * S, heads[heads.length - 1].y - (down ? 1.4 * S : 4.3 * S));
-          fs.forEach((f, i) => (g += `<text class="fg" style="font-size:${(S * 0.9).toFixed(1)}px" x="${x}" y="${yy - i * 1.0 * S}">${f}</text>`));
+        if (above) {
+          const hiY = heads[heads.length - 1].y;
+          let yy = Math.min(stTop - 0.9 * S, hiY - (down ? 1.4 * S : 4.3 * S));
+          fs.forEach((f, i) => (g += `<text class="fg" style="font-size:${fsz}px" x="${x}" y="${yy - i * 1.0 * S}">${f}</text>`));
+          yy -= Math.max(1, fs.length) * 1.0 * S;
+          if (n.bow) { g += glyph(n.bow === 'd' ? 'stringsDownBow' : 'stringsUpBow', x - 0.5 * S, yy, 'bw'); yy -= 1.4 * S; }
+          if (n.posLabel) g += `<text class="pl" style="font-size:${(S * 0.95).toFixed(1)}px" x="${x}" y="${yy}">${n.posLabel}</text>`;
         } else {
           const yy = Math.max(stBot + 1.9 * S, heads[0].y + (down ? 4.6 * S : 2.0 * S));
-          [...fs].reverse().forEach((f, i) => (g += `<text class="fg" style="font-size:${(S * 0.9).toFixed(1)}px" x="${x}" y="${yy + i * 1.0 * S}">${f}</text>`));
+          [...fs].reverse().forEach((f, i) => (g += `<text class="fg" style="font-size:${fsz}px" x="${x}" y="${yy + i * 1.0 * S}">${f}</text>`));
         }
       }
     }
