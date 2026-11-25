@@ -376,19 +376,14 @@ export class Player {
     if (this.mode === 'rhythm') return this.onNoteRhythm(midi, t, source, cents);
     const e = this.ev[this.idx];
     if (!e) return;
+    if (this.bass && source === 'mic') {
+      const mt = this.bassMatch(midi, cents, [...e.midis, ...(this.ev[this.idx - 1]?.midis || [])]);
+      if (mt) { midi = mt.midi; cents = mt.cents; }
+    }
     if (e.midis.includes(midi) && this.bass && source === 'mic' && cents != null) {
       const c = Math.round(cents), ac = Math.abs(c);
-      if (ac > 2 * this.tol) {
-        if (t - (this.lastWrong || 0) < 0.35) return;
-        this.lastWrong = t; e.tries++; this.combo = 0;
-        this.kb.flash(midi, 'bad');
-        this.feedback(`Richtiger Ton, aber ${ac} ct zu ${c > 0 ? 'hoch' : 'tief'} – nochmal sauberer.`, 'bad', 2200);
-        this.updateStats();
-        return;
-      }
       e.inton = c;
-      e.intonPts = ac <= this.tol ? 1 : 0.6;
-      if (ac > this.tol) this.feedback(`Etwas zu ${c > 0 ? 'hoch' : 'tief'} (${ac} ct)`, 'tip', 1500);
+      e.intonPts = this.intonPts(ac);
     }
     if (e.midis.includes(midi)) {
       e.hits[midi] = t;
@@ -402,18 +397,34 @@ export class Player {
     if (prev && prev.midis.includes(midi) && t - this.lastAdvance < 0.6) return;
     if (t - (this.lastWrong || 0) < 0.35) return;
     this.lastWrong = t;
+    this.kb.flash(midi, 'bad');
+    // Kontrabass: Fehlerkennungen (Nachklang, Resonanz) nicht bestrafen
+    if (this.bass && source === 'mic') { this.feedback(`Gehört: ${midiName(midi)}`, 'tip', 1200); return; }
     e.tries++;
     this.combo = 0;
-    this.kb.flash(midi, 'bad');
     const g = this.L.evEls[this.idx];
     if (g) { g.classList.add('shake'); setTimeout(() => g.classList.remove('shake'), 400); }
     this.feedback(`Das war ${midiName(midi)} – versuch’s nochmal.`, 'bad', 2000);
     this.updateStats();
   }
+  // Kontrabass: großzügige Zuordnung (bis 70 Cent daneben, Oktavfehler des Mikrofons)
+  bassMatch(midi, cents, cands) {
+    const f = midi + (cents || 0) / 100;
+    let best = null;
+    for (const m of new Set(cands)) for (const oct of [0, 12, -12]) {
+      const d = f - (m + oct);
+      if (Math.abs(d) <= 0.7 && (!best || Math.abs(d) < Math.abs(best.d))) best = { midi: m, d };
+    }
+    return best ? { midi: best.midi, cents: best.d * 100 } : null;
+  }
+  intonPts(ac) {
+    const full = Math.max(30, this.tol * 2);
+    return ac <= full ? 1 : ac <= 55 ? 0.9 : 0.75;
+  }
   advance() {
     const e = this.ev[this.idx];
     const ip = e.intonPts ?? 1;
-    e.status = e.tries === 0 && ip === 1 ? 'ok' : 'meh';
+    e.status = e.tries === 0 && ip >= 0.9 ? 'ok' : 'meh';
     e.pts = (e.tries === 0 ? 1 : e.tries === 1 ? 0.5 : 0.25) * ip;
     if (e.tries === 0) { this.combo++; this.best = Math.max(this.best, this.combo); }
     this.lastAdvance = performance.now() / 1000;
@@ -446,7 +457,7 @@ export class Player {
     }
     if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.input === 'mic' ? 0.4 : 0.6);
     this.missIdx = 0;
-    this.win = Math.max(0.22, Math.min(0.32, spb * 0.4));
+    this.win = this.bass ? Math.max(0.32, Math.min(0.5, spb * 0.6)) : Math.max(0.22, Math.min(0.32, spb * 0.4));
     this.paint();
     const ci = this.$('.countin');
     const loop = () => {
@@ -468,6 +479,19 @@ export class Player {
         if (te > songT - 0.4 && this.ev[i].status === 'pending') exp.push(...this.ev[i].midis);
       }
       Listener.setExpected([...new Set(exp)]);
+      // Kontrabass: Tonwiederholung ohne hörbaren neuen Anschlag trotzdem werten
+      if (this.bass && S.settings.input === 'mic') {
+        for (let i = this.missIdx; i < this.ev.length; i++) {
+          const e = this.ev[i], te = e.beat * spb;
+          if (te > songT) break;
+          const pv = this.ev[i - 1];
+          if (e.status !== 'pending' || !pv || pv.status === 'miss' || pv.status === 'pending' || pv.midis[0] !== e.midis[0] || songT - te < 0.06) continue;
+          const p = Listener.pitch;
+          if (p && p.clarity > 0.75 && Math.abs(((p.midi - e.midis[0] + 6) % 12 + 12) % 12 - 6) < 0.7) {
+            e.status = 'ok'; e.pts = 0.92; this.combo++; this.best = Math.max(this.best, this.combo); this.paint(); this.updateStats();
+          }
+        }
+      }
       // verpasste
       while (this.missIdx < this.ev.length && this.ev[this.missIdx].beat * spb + this.win < songT) {
         const e = this.ev[this.missIdx];
@@ -486,8 +510,13 @@ export class Player {
     this.raf = requestAnimationFrame(loop);
   }
   onNoteRhythm(midi, t, source, cents) {
-    const lat = source === 'mic' ? (S.settings.latency || 0) / 1000 : source === 'touch' ? 0.02 : 0;
+    const lat = source === 'mic' ? (S.settings.latency || 0) / 1000 * (this.bass ? 0.4 : 1) : source === 'touch' ? 0.02 : 0;
     const songT = t - this.tStart - lat;
+    if (this.bass && source === 'mic') {
+      const near = this.ev.filter(e => Math.abs(e.beat * this.spb - songT) <= this.win + 0.1).flatMap(e => e.midis);
+      const mt = this.bassMatch(midi, cents, near);
+      if (mt) { midi = mt.midi; cents = mt.cents; }
+    }
     let best = null, bd = 9;
     for (let i = Math.max(0, this.missIdx - 2); i < this.ev.length; i++) {
       const e = this.ev[i];
@@ -501,6 +530,7 @@ export class Player {
       // Nachklang des gerade getroffenen Tons ignorieren
       const recent = this.ev.find(e => e.status !== 'pending' && e.status !== 'miss' && e.midis.includes(midi) && Math.abs(e.beat * this.spb - songT) < 0.5);
       if (recent) return;
+      if (this.bass && source === 'mic') { this.kb.flash(midi, 'bad'); return; }
       this.wrong++;
       this.combo = 0;
       this.kb.flash(midi, 'bad');
@@ -516,14 +546,15 @@ export class Player {
       const dts = Object.values(best.hits).map(h => Math.abs(h - te));
       const dt = Math.max(...dts);
       let grade, pts;
-      if (dt <= 0.08) { grade = 'Perfekt'; pts = 1; best.status = 'ok'; }
-      else if (dt <= 0.16) { grade = 'Gut'; pts = 0.8; best.status = 'ok'; }
-      else { grade = 'OK'; pts = 0.5; best.status = 'meh'; }
+      const [tp, tg] = this.bass ? [0.13, 0.25] : [0.08, 0.16];
+      if (dt <= tp) { grade = 'Perfekt'; pts = 1; best.status = 'ok'; }
+      else if (dt <= tg) { grade = 'Gut'; pts = this.bass ? 0.92 : 0.8; best.status = 'ok'; }
+      else { grade = 'OK'; pts = this.bass ? 0.78 : 0.5; best.status = 'meh'; }
       let itxt = '';
       if (this.bass && best.inton != null) {
         const ac = Math.abs(best.inton);
-        if (ac > 2 * this.tol) { pts *= 0.3; best.status = 'meh'; itxt = ` · ${ac} ct ${best.inton > 0 ? 'zu hoch' : 'zu tief'}`; }
-        else if (ac > this.tol) { pts *= 0.6; best.status = 'meh'; itxt = ` · etwas ${best.inton > 0 ? 'hoch' : 'tief'}`; }
+        pts *= this.intonPts(ac);
+        if (ac > Math.max(30, this.tol * 2)) itxt = ` · etwas ${best.inton > 0 ? 'hoch' : 'tief'}`;
       }
       best.pts = pts;
       this.combo++; this.best = Math.max(this.best, this.combo);
@@ -574,7 +605,8 @@ export class Player {
     this.stop();
     this.$('[data-a=start]').innerHTML = `${ICON.play} Start`;
     const acc = this.accuracy();
-    const st = acc >= 0.95 ? 3 : acc >= 0.8 ? 2 : acc >= 0.6 ? 1 : 0;
+    const [s3, s2, s1] = this.bass ? [0.88, 0.7, 0.5] : [0.95, 0.8, 0.6];
+    const st = acc >= s3 ? 3 : acc >= s2 ? 2 : acc >= s1 ? 1 : 0;
     const res = {
       accuracy: acc, stars: st, mode: this.mode, tempoF: this.tempoF, best: this.best,
       wrong: this.wrong + this.ev.reduce((a, e) => a + e.tries, 0),

@@ -252,7 +252,7 @@ export const Listener = {
     this.pitch = y;
     if (this.onPitch) this.onPitch(y && y.clarity > 0.82 ? y : null);
     const H = this.bh || (this.bh = []);
-    H.push(y && y.clarity > 0.85 ? { m: Math.round(y.midi), c: (y.midi - Math.round(y.midi)) * 100, t: now } : null);
+    H.push(y && y.clarity > 0.78 ? { m: Math.round(y.midi), c: (y.midi - Math.round(y.midi)) * 100, t: now } : null);
     if (H.length > 4) H.shift();
     if (onset) this.bOnset = now;
     if (!gate) { this.bLast = null; return; }
@@ -351,7 +351,7 @@ export const Listener = {
     if (this.shortHist.length > 6) this.shortHist.shift();
     const now = performance.now() / 1000;
     const minRecent = Math.min(...this.shortHist.slice(0, -1));
-    const onset = gate && lvl - minRecent > 5 && now - this.lastOnset > 0.2;
+    const onset = gate && lvl - minRecent > (this.mode === 'bass' ? 3 : 5) && now - this.lastOnset > (this.mode === 'bass' ? 0.15 : 0.2);
     if (onset) this.lastOnset = now;
     if (this.onLevel) this.onLevel(lvl, this.noise, gate);
     if (this.muted || now < (this.muteUntil || 0)) return;
