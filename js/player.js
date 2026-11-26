@@ -598,7 +598,7 @@ export class Player {
     this.raf = requestAnimationFrame(loop);
   }
   onNoteRhythm(midi, t, source, cents) {
-    const lat = source === 'mic' ? (S.settings.latency || 0) / 1000 * (this.bass ? 0.4 : 1) : source === 'touch' ? 0.02 : 0;
+    const lat = source === 'mic' ? (this.bass ? (S.settings.latencyBass ?? (S.settings.latency || 0) * 0.4) : (S.settings.latency || 0)) / 1000 : source === 'touch' ? 0.02 : 0;
     const songT = t - this.tStart - lat;
     if (this.bass && source === 'mic') {
       const near = this.ev.filter(e => Math.abs(e.beat * this.spb - songT) <= this.win + 0.1).flatMap(e => e.midis);

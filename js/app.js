@@ -8,12 +8,15 @@ import { renderScore } from './notation.js';
 import { Synth, Listener, Midi, Accomp, getCtx, unlockAudio } from './audio.js';
 import { Player, ICON, esc } from './player.js';
 import { sprintScreen, earScreen } from './extras.js';
+import { setupWizard, statsScreen, scaleTrainer, jamSession, customList } from './tools.js';
+import { Cloud } from './sync.js';
 import {
   S, save, addXP, levelInfo, stars, recordStep, worldUnlocked, lessonUnlocked, lessonDone, nextStep,
   totalStars, ACHIEVEMENTS, setNotifier, exportCode, importCode, resetAll, taskDone, checkAchievements,
 } from './store.js';
 
 const PIECES = { ...PIANO_PIECES, ...BASS_PIECES };
+const P = id => (S.custom && S.custom[id]) || PIECES[id];
 const W = () => worldsFor(S.instrument);
 const isBass = () => S.instrument === 'bass';
 const app = document.getElementById('app');
@@ -70,6 +73,7 @@ function home() {
       </div>
     </header>
 
+    ${S.settings.setupDone ? '' : `<div class="setup-banner">${ICON.wand}<div><b>Einmal einrichten (2 Minuten)</b><br><span class="muted">Die App stellt Mikrofon, Empfindlichkeit und Timing auf dein ${isBass() ? 'Kontrabass' : 'Keyboard'} ein.</span></div><button class="btn primary small" data-go="setup">Starten</button></div>`}
     <section class="today">
       <div class="today-main">
         <svg class="ring" viewBox="0 0 76 76"><circle cx="38" cy="38" r="${R}" class="ring-bg"/><circle cx="38" cy="38" r="${R}" class="ring-fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - dayPct)}"/></svg>
@@ -91,8 +95,8 @@ function home() {
     </section>
 
     <section class="favs">
-      <div class="sec-head"><h2>Wunschstücke</h2><span class="muted">Immer spielbar, egal wie weit du bist.</span></div>
-      <div class="fav-row">${FAVORITES[S.instrument].map(id => { const p = PIECES[id]; return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by)} · ${keyLabel(p)}</span></div>${starRow(stars('p-' + id))}</button>`; }).join('')}</div>
+      <div class="sec-head"><h2>Wunschstücke</h2><span class="muted">Immer spielbar, egal wie weit du bist. <button class="link-btn" data-go="custom">+ Eigenes Stück</button></span></div>
+      <div class="fav-row">${[...Object.keys(S.custom || {}).filter(id => (S.custom[id].inst || 'piano') === S.instrument), ...FAVORITES[S.instrument]].map(id => { const p = P(id); return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by || 'Eigenes Stück')} · ${keyLabel(p)}</span></div>${starRow(stars('p-' + id))}</button>`; }).join('')}</div>
     </section>
 
     <section class="extras">
@@ -100,6 +104,10 @@ function home() {
       <button class="extra" data-go="ear">${ICON.ear}<b>Gehörtraining</b><span>${S.stats.earCorrect} richtig</span></button>
       ${isBass() ? `<button class="extra" data-go="tuner">${ICON.tuner}<b>Stimmgerät</b><span>E · A · D · G</span></button>` : ''}
       <button class="extra" data-go="library">${ICON.book}<b>Theorie</b><span>${W().flatMap(w => w.lessons.flatMap(l => l.steps)).filter(s => s.type === 'theory').length} Karten</span></button>
+      <button class="extra" data-go="scale">${ICON.scale}<b>Tonleitern</b><span>Dur & Moll</span></button>
+      <button class="extra" data-go="jam">${ICON.jam}<b>Jam-Session</b><span>Improvisieren</span></button>
+      <button class="extra" data-go="stats">${ICON.chart}<b>Schwachstellen</b><span>gezielt üben</span></button>
+      <button class="extra" data-go="custom">${ICON.edit}<b>Eigene Stücke</b><span>${Object.values(S.custom || {}).filter(p => (p.inst || 'piano') === S.instrument).length} gespeichert</span></button>
       <button class="extra" data-go="ach">${ICON.trophy}<b>Erfolge</b><span>${Object.keys(S.ach).length}/${ACHIEVEMENTS.length}</span></button>
     </section>
     <footer class="foot">Fortschritt wird auf diesem Gerät gespeichert. Übertragen per Sync-Code in den Einstellungen.</footer>
@@ -110,6 +118,11 @@ function home() {
     if (b.dataset.fav) return runStep(FAV_WORLD(), null, { type: 'piece', id: 'p-' + b.dataset.fav, piece: b.dataset.fav });
     if (b.dataset.inst) { if (S.instrument !== b.dataset.inst) { S.instrument = b.dataset.inst; save(); } return home(); }
     if (b.dataset.go === 'tuner') return tuner();
+    if (b.dataset.go === 'setup') { destroyPlayer(); return setupWizard(app, home); }
+    if (b.dataset.go === 'stats') { destroyPlayer(); return statsScreen(app, home, playTool); }
+    if (b.dataset.go === 'scale') { destroyPlayer(); return scaleTrainer(app, home, playTool); }
+    if (b.dataset.go === 'jam') { destroyPlayer(); return jamSession(app, home); }
+    if (b.dataset.go === 'custom') { destroyPlayer(); return customList(app, home, (id, back) => runStep(FAV_WORLD(), null, { type: 'piece', id: 'p-' + id, piece: id }, back)); }
     if (b.dataset.lesson) { const [wi, li] = b.dataset.lesson.split('-').map(Number); return lessonScreen(wi, li); }
     if (b.dataset.boss != null) return runStep(W()[+b.dataset.boss], null, { type: 'piece', id: 'boss-' + W()[+b.dataset.boss].id, piece: W()[+b.dataset.boss].boss, boss: true });
     const g = b.dataset.go;
@@ -123,6 +136,8 @@ function home() {
   };
 }
 
+// Werkzeuge starten eigene Übungen (ohne Lektion)
+function playTool(step, back) { runStep(FAV_WORLD(), null, step, back); }
 const FAV_WORLD = () => ({ id: isBass() ? 'bfav' : 'fav', hint: 1, maxPos: 9 });
 const KEY_DE = { C: 'C', G: 'G', D: 'D', A: 'A', E: 'E', F: 'F', Bb: 'B', Eb: 'Es' };
 const MINOR_DE = { A: 'a', E: 'e', B: 'h', 'F#': 'fis', 'C#': 'cis', D: 'd', G: 'g', C: 'c', F: 'f' };
@@ -138,20 +153,20 @@ function keyLabel(p) {
 }
 
 function stepLabel(n) {
-  if (!n.lesson) return `Boss: ${PIECES[n.world.boss].title}`;
+  if (!n.lesson) return `Boss: ${P(n.world.boss).title}`;
   return `${n.lesson.title} · ${stepTitle(n.step)}`;
 }
 function stepTitle(s) {
   if (s.type === 'theory') return THEORY[s.card].title;
   if (s.type === 'drill') return s.title;
-  return PIECES[s.piece].title;
+  return P(s.piece).title;
 }
 function findReview() {
   let best = null;
   W().forEach(w => w.lessons.forEach(l => l.steps.forEach(s => {
     if (s.type !== 'piece') return;
     const st = stars(s.id);
-    if (st > 0 && st < 3 && (!best || st < best.st)) best = { st, world: w, lesson: l, step: s, title: PIECES[s.piece].title };
+    if (st > 0 && st < 3 && (!best || st < best.st)) best = { st, world: w, lesson: l, step: s, title: P(s.piece).title };
   })));
   return best;
 }
@@ -181,7 +196,7 @@ function worldCard(w, wi) {
       }).join('')}
       <button class="node boss ${bossSt >= 2 ? 'done' : ''} ${open ? '' : 'off'}" ${open ? `data-boss="${wi}"` : 'disabled'}>
         <span class="dot">${ICON.crown}</span>
-        <b>Boss: ${esc(PIECES[w.boss].title)}</b>
+        <b>Boss: ${esc(P(w.boss).title)}</b>
         <span class="mini">${starRow(bossSt)}</span>
       </button>
     </div>
@@ -200,7 +215,7 @@ function lessonScreen(wi, li) {
       ${l.steps.map((s, i) => {
         const st = stars(s.id);
         const icon = s.type === 'theory' ? ICON.book : s.type === 'drill' ? ICON.drill : ICON.note;
-        const kind = s.type === 'theory' ? 'Theorie' : s.type === 'drill' ? 'Blattspiel-Übung · jedes Mal neu' : `Stück · ${esc(PIECES[s.piece].by)}`;
+        const kind = s.type === 'theory' ? 'Theorie' : s.type === 'drill' ? 'Blattspiel-Übung · jedes Mal neu' : `Stück · ${esc(P(s.piece).by)}`;
         return `<li class="${st ? 'done' : ''}">
           <span class="s-ico">${icon}</span>
           <div><b>${esc(stepTitle(s))}</b><span>${kind}</span></div>
@@ -232,11 +247,11 @@ function runStep(world, lesson, step, back) {
   let piece, title, sub;
   const bass = world.id.startsWith('b');
   if (step.type === 'drill') {
-    piece = generateDrill(step.cfg, Date.now());
+    piece = step.fixed ? { ...step.fixed } : generateDrill(step.cfg, Date.now());
     if (bass) piece.tech = step.cfg.tech || 'arco';
-    title = step.title; sub = 'Blattspiel-Übung · neue Noten bei jedem Versuch';
+    title = step.title; sub = step.fixed ? 'Übung' : 'Blattspiel-Übung · neue Noten bei jedem Versuch';
   } else {
-    const p = PIECES[step.piece];
+    const p = P(step.piece);
     piece = p; title = p.title; sub = `${p.by} · ${p.style}${bass ? (p.tech === 'pizz' ? ' · Pizzicato' : ' · Arco') : ''}${step.boss ? ' · Boss' : ''}`;
   }
   if (bass) piece = { ...piece, transpose: TRANSPOSE, staves: ['b'] };
@@ -487,7 +502,33 @@ function settings() {
       ${seg('goal', [[30, '30 XP · locker'], [60, '60 XP · normal'], [100, '100 XP · intensiv']])}
     </div>
 
-    <h2>Fortschritt übertragen</h2>
+    <h2>Darstellung & Aufnahme</h2>
+    <div class="form">
+      <label>Design</label>
+      ${seg('theme', [['auto', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']])}
+      <label>Spielen aufnehmen (zum Anhören danach)</label>
+      ${seg('record', [[true, 'An'], [false, 'Aus']])}
+      <button class="btn ghost" data-a="setup">${ICON.wand} Einrichtungs-Assistent starten</button>
+    </div>
+
+    <h2>Cloud-Sync (automatisch)</h2>
+    <div class="cloud-box">
+      <p class="hint-line">Dein Fortschritt wird in einem <b>privaten Gist</b> in deinem GitHub-Konto gespeichert und auf allen Geräten automatisch abgeglichen. Einmal pro Gerät einrichten:</p>
+      <ol>
+        <li>Auf <a href="https://github.com/settings/tokens/new?scopes=gist&description=Klavier-Quest" target="_blank" rel="noopener">github.com/settings/tokens/new</a> einen Token erstellen – nur das Häkchen <b>„gist“</b>, Ablauf z. B. „No expiration“.</li>
+        <li>Den Token (beginnt mit <code>ghp_</code>) hier einfügen und „Verbinden“ tippen.</li>
+        <li>Auf dem anderen Gerät denselben Token einfügen (z. B. per AirDrop oder Notizen übertragen).</li>
+      </ol>
+      <input class="inp" type="password" data-cloud="tok" placeholder="ghp_…" value="${Cloud.token() ? '••••••••••••' : ''}" autocomplete="off">
+      <div class="row left">
+        <button class="btn primary small" data-a="cloud-on">${ICON.cloud} Verbinden</button>
+        <button class="btn ghost small" data-a="cloud-now">Jetzt synchronisieren</button>
+        ${Cloud.token() ? '<button class="btn ghost small" data-a="cloud-off">Trennen</button>' : ''}
+      </div>
+      <span class="cloud-st muted">${Cloud.token() ? (Cloud.status || 'Verbunden') : 'Nicht verbunden'}</span>
+    </div>
+
+    <h2>Fortschritt übertragen (manuell)</h2>
     <div class="form">
       <p class="hint-line">Kopiere den Code auf dem einen Gerät und füge ihn auf dem anderen ein (z. B. per AirDrop oder Notizen). Beim Einfügen wird immer der bessere Stand behalten.</p>
       <button class="btn ghost" data-a="export">Sync-Code kopieren</button>
@@ -536,10 +577,22 @@ function settings() {
     if (b.dataset.k) {
       let v = b.dataset.v;
       if (v === 'true') v = true; else if (v === 'false') v = false; else if (/^\d+$/.test(v) && b.dataset.k === 'goal') v = +v;
-      st[b.dataset.k] = v; save(); return settings();
+      st[b.dataset.k] = v; save();
+      if (b.dataset.k === 'theme') applyTheme();
+      return settings();
     }
     const a = b.dataset.a;
     if (a === 'back') { Listener.onLevel = null; if (testing) { Listener.setExpected([]); } return home(); }
+    if (a === 'setup') { Listener.onLevel = null; return setupWizard(app, settings); }
+    if (a === 'cloud-on') {
+      const v = $('[data-cloud=tok]').value.trim();
+      if (!v || v.startsWith('•')) { $('.cloud-st').textContent = 'Bitte zuerst einen Token einfügen.'; return; }
+      Cloud.setToken(v); $('.cloud-st').textContent = 'Verbinde …';
+      await Cloud.sync(); $('.cloud-st').textContent = Cloud.status;
+      if (!Cloud.status.startsWith('Sync fehl')) Cloud.init();
+    }
+    if (a === 'cloud-now') { $('.cloud-st').textContent = 'Synchronisiere …'; await Cloud.sync(); $('.cloud-st').textContent = Cloud.status || 'Kein Token hinterlegt.'; }
+    if (a === 'cloud-off') { Cloud.setToken(''); return settings(); }
     if (a === 'mictest') {
       try { Listener.mode = isBass() ? 'bass' : 'piano'; await Listener.start(); Listener.sens = st.sens; testing = true; fillMics(); Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
       catch (err) { $('.mt-note').textContent = 'Kein Zugriff aufs Mikrofon'; }
@@ -580,8 +633,19 @@ function destroyPlayer() {
 
 const LOGO = '<svg viewBox="0 0 40 40" class="logo-mark"><rect x="2" y="6" width="36" height="28" rx="7" fill="var(--ink)"/><rect x="7" y="11" width="6" height="18" rx="1.5" fill="#fff"/><rect x="17" y="11" width="6" height="18" rx="1.5" fill="#fff"/><rect x="27" y="11" width="6" height="18" rx="1.5" fill="var(--accent)"/><rect x="11.5" y="11" width="3.5" height="10" rx="1" fill="var(--ink)"/><rect x="21.5" y="11" width="3.5" height="10" rx="1" fill="var(--ink)"/></svg>';
 
+// Design
+function applyTheme() {
+  const t = S.settings.theme || 'auto';
+  const dark = t === 'dark' || (t === 'auto' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', dark ? '#111318' : '#ffffff');
+}
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
+applyTheme();
+
 // Start
 Listener.micId = S.settings.micId || null;
+Cloud.init(() => { if (document.querySelector('.home')) home(); });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) return;
   if (current) { current.stopPreview(); if (current.running) { current.stop(); current.reset(); } }

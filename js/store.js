@@ -169,8 +169,11 @@ export function importCode(code) {
   code = code.trim().replace(/\s+/g, '');
   if (!code.startsWith('KQ1-')) throw new Error('Das ist kein gültiger Sync-Code.');
   const d = JSON.parse(decodeURIComponent(escape(atob(code.slice(4)))));
-  if (typeof d.xp !== 'number' || typeof d.steps !== 'object') throw new Error('Code unvollständig.');
-  // Zusammenführen: jeweils das Bessere behalten
+  mergeData(d);
+}
+// Zusammenführen: jeweils das Bessere behalten (für Sync-Code und Cloud-Sync)
+export function mergeData(d, quiet = false) {
+  if (typeof d.xp !== 'number' || typeof d.steps !== 'object') throw new Error('Daten unvollständig.');
   S.xp = Math.max(S.xp, d.xp);
   for (const [k, v] of Object.entries(d.steps)) S.steps[k] = Math.max(S.steps[k] || 0, v);
   Object.assign(S.bosses, d.bosses || {});
@@ -179,8 +182,17 @@ export function importCode(code) {
   for (const k of Object.keys(S.stats)) S.stats[k] = Math.max(S.stats[k] || 0, d.stats?.[k] || 0);
   if (d.settings && d.updated > S.updated) S.settings = { ...S.settings, ...d.settings, input: S.settings.input };
   if (d.instrument && d.updated > S.updated) S.instrument = d.instrument;
+  // eigene Stücke, Tempi, Fehlerstatistik
+  if (d.custom) S.custom = { ...d.custom, ...(S.custom || {}) };
+  if (d.tempi) S.tempi = { ...d.tempi, ...(S.tempi || {}) };
+  if (d.noteStats) for (const [inst, m] of Object.entries(d.noteStats)) {
+    const mine = ((S.noteStats ||= {})[inst] ||= {});
+    for (const [k, v] of Object.entries(m)) if (!mine[k] || v.n > mine[k].n) mine[k] = v;
+  }
+  if (d.daily && d.daily.date === S.daily.date) { S.daily.xp = Math.max(S.daily.xp, d.daily.xp); S.daily.goalHit = S.daily.goalHit || d.daily.goalHit; Object.assign(S.daily.tasks, d.daily.tasks || {}); }
   rollDay();
-  save();
+  if (quiet) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* egal */ } subs.forEach(f => f()); }
+  else save();
 }
 export function resetAll() {
   const fresh = DEFAULT();
