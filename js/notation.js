@@ -8,6 +8,10 @@ const MID = { t: 34, b: 22 };      // Mittellinie (H4 / D3)
 const SHARP_STEPS = { t: [38, 35, 39, 36, 33, 37, 34], b: [24, 21, 25, 22, 19, 23, 20] };
 const FLAT_STEPS = { t: [34, 37, 33, 36, 32, 35, 31], b: [20, 23, 19, 22, 18, 21, 17] };
 
+function thumbSym(x, y, r) {
+  const w = (r * 0.28).toFixed(2);
+  return `<g class="fg-th"><circle cx="${x}" cy="${y - r * 0.3}" r="${r * 0.62}" fill="none" stroke="currentColor" stroke-width="${w}"/><line x1="${x}" x2="${x}" y1="${y + r * 0.32}" y2="${y + r}" stroke="currentColor" stroke-width="${w}"/></g>`;
+}
 export function renderScore(svg, score, opt = {}) {
   const S = opt.space || 12;               // Linienabstand
   const sc = S / 250;
@@ -180,13 +184,13 @@ export function renderScore(svg, score, opt = {}) {
         if (above) {
           const hiY = heads[heads.length - 1].y;
           let yy = Math.min(stTop - 0.9 * S, hiY - (down ? 1.4 * S : 4.3 * S));
-          fs.forEach((f, i) => (g += `<text class="fg" style="font-size:${fsz}px" x="${x}" y="${yy - i * 1.0 * S}">${f}</text>`));
+          fs.forEach((f, i) => (g += f === 'T' ? thumbSym(x, yy - i * 1.0 * S - 0.3 * S, 0.45 * S) : `<text class="fg" style="font-size:${fsz}px" x="${x}" y="${yy - i * 1.0 * S}">${f}</text>`));
           yy -= Math.max(1, fs.length) * 1.0 * S;
           if (n.bow) { g += glyph(n.bow === 'd' ? 'stringsDownBow' : 'stringsUpBow', x - 0.5 * S, yy, 'bw'); yy -= 1.4 * S; }
           if (n.posLabel) g += `<text class="pl" style="font-size:${(S * 0.95).toFixed(1)}px" x="${x}" y="${yy}">${n.posLabel}</text>`;
         } else {
           const yy = Math.max(stBot + 1.9 * S, heads[0].y + (down ? 4.6 * S : 2.0 * S));
-          [...fs].reverse().forEach((f, i) => (g += `<text class="fg" style="font-size:${fsz}px" x="${x}" y="${yy + i * 1.0 * S}">${f}</text>`));
+          [...fs].reverse().forEach((f, i) => (g += f === 'T' ? thumbSym(x, yy + i * 1.0 * S - 0.3 * S, 0.45 * S) : `<text class="fg" style="font-size:${fsz}px" x="${x}" y="${yy + i * 1.0 * S}">${f}</text>`));
         }
       }
     }

@@ -370,7 +370,7 @@ export function customEditor(root, id, back) {
       if (!(piece.rh || piece.lh)) throw new Error('Noch keine Noten eingegeben.');
       const errs = validatePiece(piece);
       if (piece.chords) { const n = piece.chords.split('|').length; parseChords(piece.chords, piece.ts[0] * 4 / piece.ts[1]); errs.push(...[]); }
-      const sc = buildScore(bass ? { ...piece, transpose: TRANSPOSE, staves: ['b'] } : piece);
+      const sc = buildScore(bass ? { ...piece, transpose: TRANSPOSE, staves: [piece.clefs?.lh === 't' ? 't' : 'b'] } : piece);
       if (bass) applyFingering(sc, 11);
       renderScore(root.querySelector('.staff'), sc, { space: 10, pxPerBeat: 52, tall: bass });
       err.textContent = errs.length ? 'Hinweis: ' + errs.slice(0, 3).join(' · ') : '';

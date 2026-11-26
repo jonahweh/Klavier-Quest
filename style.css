@@ -469,3 +469,6 @@ textarea.inp { resize: vertical; }
 
 .link-btn { color: var(--accent); font-weight: 800; font-size: 14px; padding: 0 0 0 8px; }
 .cloud-box a { color: var(--accent); font-weight: 700; }
+.staff .fg-th { color: var(--ink2); }
+.fb-th { color: #fff; pointer-events: none; }
+:root[data-theme=dark] .node.boss { background: color-mix(in srgb, var(--wc) 22%, var(--card)); }

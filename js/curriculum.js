@@ -1,6 +1,7 @@
 // Lehrplan: Welten → Lektionen → Schritte. Theorie-Karten mit Beispielen zum Anhören.
 import { BASS_WORLDS, BASS_THEORY } from './bass-curriculum.js';
 import { REP_FAVORITES } from './bass-repertoire.js';
+import { PRO_WORLDS, PRO_THEORY } from './pro-content.js';
 
 const C_POS_T = ['C4', 'D4', 'E4', 'F4', 'G4'];
 const C_POS_B = ['C3', 'D3', 'E3', 'F3', 'G3'];
@@ -153,6 +154,8 @@ export const THEORY = {
   },
 };
 
+Object.assign(THEORY, PRO_THEORY);
+
 const D = (id, title, cfg) => ({ type: 'drill', id, title, cfg });
 const T = id => ({ type: 'theory', id: 't-' + id, card: id });
 const Pc = id => ({ type: 'piece', id: 'p-' + id, piece: id });
@@ -223,6 +226,7 @@ export const WORLDS = [
     ],
     boss: 'ueber-den-wolken',
   },
+  ...PRO_WORLDS,
 ];
 
 // Wunschstücke: immer spielbar, unabhängig vom Fortschritt

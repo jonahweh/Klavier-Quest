@@ -1,7 +1,10 @@
 // Stücke. Eigene Kompositionen + gemeinfreie Klassiker (Beethoven, Petzold).
 // rh = rechte Hand (Violinschlüssel), lh = linke Hand (Bassschlüssel). Fingersatz nach dem Doppelpunkt.
 
+import { PRO_PIECES } from './pro-content.js';
+
 export const PIECES = {
+  ...PRO_PIECES,
   'erster-schritt': {
     title: 'Erster Schritt', by: 'Klavier-Quest', style: 'Etüde', tempo: 72, key: 'C', ts: [4, 4],
     rh: 'C4:1/q D4:2 E4:3 F4:4 | G4:5/h E4:3/h | F4:4/q E4:3 D4:2 C4:1 | D4:2/w | C4:1/q D4:2 E4:3 F4:4 | G4:5/h E4:3/h | F4:4/q D4:2 E4:3 D4:2 | C4:1/w',

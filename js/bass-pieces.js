@@ -3,6 +3,7 @@
 // Fingersätze (Simandl) werden automatisch berechnet. @d = Abstrich, @u = Aufstrich.
 
 import { REP_PIECES } from './bass-repertoire.js';
+import { PRO_BASS_PIECES } from './pro-content.js';
 
 const B = (o) => ({ by: 'Klavier-Quest', ts: [4, 4], ...o });
 
@@ -147,4 +148,5 @@ export const BASS_PIECES = {
     chords: 'G | Em | Am | D7 | G | E7 | Am | D7 | B7 | Em | A7 | D7 | G | C | Am D7 | G',
   }),
   ...REP_PIECES,
+  ...PRO_BASS_PIECES,
 };

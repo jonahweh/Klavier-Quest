@@ -91,7 +91,6 @@ function home() {
     <section class="worlds">
       <div class="sec-head"><h2>Deine Reise · ${isBass() ? 'Kontrabass' : 'Klavier'}</h2><span class="muted">${totalStars()} Sterne · Schon fit? Jeder Boss ist direkt spielbar.</span></div>
       ${W().map((w, wi) => worldCard(w, wi)).join('')}
-      <div class="world future"><div class="w-head"><span class="w-num">7+</span><div><h3>Pro · Ultra-God</h3><p>Weitere Welten folgen, sobald du hier durch bist.</p></div></div></div>
     </section>
 
     <section class="favs">
@@ -254,7 +253,8 @@ function runStep(world, lesson, step, back) {
     const p = P(step.piece);
     piece = p; title = p.title; sub = `${p.by} · ${p.style}${bass ? (p.tech === 'pizz' ? ' · Pizzicato' : ' · Arco') : ''}${step.boss ? ' · Boss' : ''}`;
   }
-  if (bass) piece = { ...piece, transpose: TRANSPOSE, staves: ['b'] };
+  if (bass && step.type === 'drill' && step.cfg.clef === 't') piece = { ...piece, clefs: { lh: 't' } };
+  if (bass) piece = { ...piece, transpose: TRANSPOSE, staves: [piece.clefs?.lh === 't' ? 't' : 'b'] };
   const score = buildScore(piece);
   if (bass) applyFingering(score, world.maxPos || 9);
   destroyPlayer();
@@ -353,13 +353,14 @@ function theoryScreen(id, onDone, back) {
     <header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button><div><span class="eyebrow">Theorie</span><h1>${esc(t.title)}</h1></div></header>
     <article class="card-body">${t.html}</article>
     ${t.example ? `<figure class="example"><div class="ex-scroll"><svg class="staff"></svg></div><button class="btn ghost" data-a="hear">${ICON.play} Beispiel anhören</button></figure>` : ''}
+    ${t.jam ? `<button class="btn ghost big" data-a="jam">${ICON.jam} Jam-Session öffnen</button>` : ''}
     <button class="btn primary big" data-a="ok">${onDone ? 'Verstanden – weiter' : 'Zurück'}</button>
   </div>`;
   let sc = null, chords = null;
   const ro = () => ({ space: 11, pxPerBeat: 58, names: true, tall: !!t.bass, chords });
   if (t.example) {
-    sc = buildScore({ tempo: 80, ...t.example, ...(t.bass ? { transpose: TRANSPOSE, staves: ['b'] } : {}) });
-    if (t.bass) applyFingering(sc, 9);
+    sc = buildScore({ tempo: 80, ...t.example, ...(t.bass ? { transpose: TRANSPOSE, clefs: t.clefs, staves: [t.clefs?.lh === 't' ? 't' : 'b'] } : {}) });
+    if (t.bass) applyFingering(sc, t.maxPos || 9);
     if (t.example.chords) chords = parseChords(t.example.chords, sc.measure).map(k => ({ ...k, label: chordLabel(k.chord.sym) }));
     renderScore(app.querySelector('.staff'), sc, ro());
   }
@@ -367,6 +368,7 @@ function theoryScreen(id, onDone, back) {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.a === 'back') return back();
     if (b.dataset.a === 'ok') return onDone ? onDone() : back();
+    if (b.dataset.a === 'jam') { Synth.stopAll(); timers.forEach(clearTimeout); return jamSession(app, () => theoryScreen(id, onDone, back)); }
     if (b.dataset.a === 'hear' && sc) {
       await unlockAudio();
       Synth.stopAll(); timers.forEach(clearTimeout); timers = [];

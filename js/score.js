@@ -167,6 +167,7 @@ const MEASURE_PATTERNS = {
   rest: ['q q q r', 'q r q q', 'h q r', 'q q h', 'e e q r q', 'q q q q'],
   dot: ['q. e q q', 'h. q', 'q q. e q', 'q. e h', 'q q q q'],
   w3: ['h q', 'q q q', 'h.', 'q h', 'q. e q', 'e e q q'],
+  s16: ['s s s s q h', 'q s s s s q q', 's s s s s s s s h', 'e e s s s s q q', 's s s s q s s s s q'],
   sync: ['e q e q q', 'q e q e q', 'e q e h', 'q q e e q', 'q. e q q'],
 };
 export function generateDrill(cfg, seed = Date.now()) {

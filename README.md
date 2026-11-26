@@ -1,34 +1,43 @@
 # Klavier-Quest 🎹
 
-Eine Web-App zum Wiedereinstieg ins Klavierspielen: Noten lesen und in Echtzeit spielen, vom **Beginner** bis zum **Intermediate**.
+Eine Web-App zum Wiedereinstieg ins Klavier- und Kontrabassspielen: Noten lesen und in Echtzeit spielen, vom **Beginner** bis zum **Ultra-God**.
 
 **App öffnen:** https://jonahweh.github.io/Klavier-Quest/
 
 ## Funktionen
-- **6 Welten** mit Lektionen, Theorie-Karten, Blattspiel-Übungen (bei jedem Versuch neu generiert) und Stücken
-- **Boss-Stücke** am Ende jeder Welt (Rhythmus-Modus, ab 2 Sternen geschafft) – jede Welt lässt sich direkt per Boss überspringen
-- **Mikrofon-Erkennung**: Die App hört dein Klavier oder Keyboard (kein MIDI nötig). MIDI-Unterstützung ist für Chrome/Edge am Computer vorbereitet
-- **Warte-Modus** (die App wartet auf die richtige Note) und **Rhythmus-Modus** (läuft im Tempo, bewertet das Timing)
-- Hilfen mit Übergang: Notennamen → leuchtende Tasten → ohne
-- XP, Level bis „Ultra-God“, Sterne, Tagesziel, Serien, Erfolge
-- Extras: **Notenlese-Sprint**, **Gehörtraining** (Höher/Tiefer, Intervalle, Dur/Moll, Nachspielen), **Theorie-Bibliothek**
-- Fortschritt per **Sync-Code** zwischen iPad und iPhone übertragen
+- **8 Welten** von Beginner über Intermediate bis **Pro** (Umkehrungen, Pop-Begleitung, Improvisation) und **Ultra-God** (Sechzehntel, Konzertstücke, Blattspiel in allen Tonarten)
+- Lektionen mit Theorie-Karten, Blattspiel-Übungen (bei jedem Versuch neu generiert) und Stücken
+- **Boss-Stücke** am Ende jeder Welt (Rhythmus-Modus, ab 2 Sternen geschafft)
+- **Mikrofon-Erkennung** für Klavier, Keyboard und Kontrabass (kein MIDI nötig); MIDI ist für Chrome/Edge vorbereitet
+- **Warte-Modus** und **Rhythmus-Modus**, Hilfen mit Übergang (Notennamen → leuchtende Tasten → ohne)
+- **Takt-Schleife** mit automatischer Tempo-Steigerung, Sprung zu Taktnummern, Tempo wird pro Stück gemerkt
+- **Aufnahme** deines Spiels zum Nachhören
+- **Schwachstellen-Statistik**: welche Töne oft danebengehen, mit gezielter Übung
+- **Tonleiter-Trainer**, **Jam-Session** zum Improvisieren mit Begleitband
+- **Eigene Stücke** eintippen und üben
+- **Einrichtungs-Assistent** für Mikrofon, Empfindlichkeit und Timing
+- Extras: Notenlese-Sprint, Gehörtraining, Theorie-Bibliothek, Wunschstücke
+- XP, Level bis „Ultra-God“, Sterne, Tagesziel, Serien, Erfolge, **Dunkelmodus**
+- Fortschritt per **Cloud-Sync** (privates GitHub-Gist) oder Sync-Code zwischen Geräten übertragen
 
 ## Kontrabass-Modus
-Oben auf der Startseite zwischen **Klavier** und **Kontrabass** umschalten. Der Kontrabass-Modus hat:
-- **6 eigene Welten**: leere Saiten & I. Lage → untere Lagen → Tonarten & Rhythmus → **Walking Bass** → mittlere Lagen → Orchester & Groove
-- Arco und Pizzicato, Klassik (u. a. Pachelbel-Kanon, Ode an die Freude) und Jazz (Blues, Walking Bass)
-- **Simandl-Fingersatz (1-2-4)** und Lagenangaben automatisch in den Noten
-- **Griffbrett** statt Klaviatur: zeigt Saite, Lage und Finger der nächsten Note
-- **Intonations-Nadel** in Cent; Wertung streng (±15 ct), einstellbar
-- Optionale **Begleitung** (Klavier + Schlagzeug: Swing, Straight, Walzer, klassisch) im Rhythmus-Modus – am besten mit Kopfhörern
-- **Stimmgerät**, Notenlese-Sprint im Bassschlüssel, Gehörtraining zum Nachspielen auf dem Bass
+Oben auf der Startseite zwischen **Klavier** und **Kontrabass** umschalten:
+- **9 Welten**: leere Saiten & I. Lage → untere Lagen → Tonarten → Walking Bass → mittlere Lagen → Orchester & Groove → **Repertoire** (Tschaikowsky, Mahler, Bach, Mozart, Beethoven, Grieg, Filmmusik-Stil) → **Daumenlage** (Pro) → **Probespiel** (Ultra-God)
+- **Simandl-Fingersatz** automatisch in den Noten, inklusive Daumenlage (Daumenzeichen, Violinschlüssel für hohe Stellen)
+- **Griffbrett** mit Saite, Lage und Finger der nächsten Note, **Intonations-Nadel** in Cent
+- Optionale **Begleitung** (Klavier + Schlagzeug), auch über Bluetooth-Box mit „Mitspielen“
+- **Stimmgerät**, Notenlese-Sprint im Bassschlüssel, Gehörtraining auf dem Bass
+
+## Cloud-Sync einrichten
+1. Auf github.com → Settings → Developer settings → Personal access tokens → **Tokens (classic)** → neuen Token erstellen, nur Haken bei **gist**
+2. In der App: Einstellungen → Cloud-Sync → Token einfügen → Synchronisieren
+3. Auf dem zweiten Gerät denselben Token eintragen. Der Token bleibt nur auf dem jeweiligen Gerät gespeichert.
 
 ## Tipps fürs iPad
 - In Safari öffnen → Teilen → „Zum Home-Bildschirm“ → startet wie eine App im Vollbild
 - Mikrofon erlauben; iPad nah ans Instrument legen
-- Erst den Mikrofon-Test in den Einstellungen machen
+- Einmal den Einrichtungs-Assistenten durchlaufen
 
 ## Technik
 Reines HTML/CSS/JavaScript ohne Build-Schritt. Notensatz in SVG mit Bravura-Glyphen (SIL Open Font License).
-Stücke: eigene Kompositionen sowie gemeinfreie Werke von Beethoven und Petzold.
+Stücke: eigene Kompositionen sowie gemeinfreie Werke (u. a. Beethoven, Petzold, Bach, Mozart, Tschaikowsky, Grieg, Mahler). Probespiel- und Filmmusik-Stücke sind Eigenkompositionen im jeweiligen Stil.

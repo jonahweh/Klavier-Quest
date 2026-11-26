@@ -16,15 +16,25 @@ const FINGER_OFF = { 1: 0, 2: 1, 4: 2 };   // Simandl: 1-2-4, je ein Halbton
 export function applyFingering(score, maxPos = 9) {
   const notes = score.notes.filter(n => !n.rest && n.pitches.length === 1);
   if (!notes.length) return;
+  // Bis zur VI. Lage Simandl 1-2-4; ab der Oktave (Halbton 12) Daumenlage: Daumen, 1, 2, 3
+  const THUMB = [['T', 0], [1, 1], [1, 2], [2, 3], [2, 4], [3, 5]];
   const optsFor = (m, lim) => {
     const out = [];
     for (let s = 0; s < 4; s++) {
       const n = m - OPEN[s];
       if (n === 0) out.push({ s, n, f: 0, p: null });
-      else if (n > 0 && n <= lim + 2) {
-        for (const [f, off] of Object.entries(FINGER_OFF)) {
-          const p = n - off;
-          if (p >= 1 && p <= lim) out.push({ s, n, f: +f, p });
+      else if (n > 0) {
+        if (n <= Math.min(lim, 11) + 2) {
+          for (const [f, off] of Object.entries(FINGER_OFF)) {
+            const p = n - off;
+            if (p >= 1 && p <= Math.min(lim, 11)) out.push({ s, n, f: +f, p });
+          }
+        }
+        if (lim >= 12 && n >= 12 && s >= 1) {
+          for (const [f, off] of THUMB) {
+            const p = n - off;
+            if (p >= 12 && p <= lim + 5) out.push({ s, n, f, p, th: true });
+          }
         }
       }
     }
@@ -36,7 +46,7 @@ export function applyFingering(score, maxPos = 9) {
   for (const note of notes) {
     const m = note.pitches[0].midi + TRANSPOSE;
     let opts = optsFor(m, maxPos);
-    if (!opts.length) opts = optsFor(m, 14);
+    if (!opts.length) opts = optsFor(m, 16);
     if (!opts.length) opts = [{ s: 3, n: m - OPEN[3], f: 4, p: Math.max(1, m - OPEN[3] - 2) }];
     const next = new Map();
     for (const prev of layer) {
@@ -48,7 +58,8 @@ export function applyFingering(score, maxPos = 9) {
         if (o.p == null) c += 0.05;          // leere Saite: leicht bevorzugt
         else c += 0.03 * o.p;                 // tiefere Lagen bevorzugt
         if (o.f === 4 && o.p >= 5) c += 0.05;
-        const key = `${o.s}|${o.f}|${cur}`;
+        if (o.th) c += 0.1 + (o.s === 3 ? 0 : 0.15) - (o.f === 'T' && o.n === 12 ? 0.2 : 0);   // Daumen am liebsten aufs Oktav-Flageolett der G-Saite
+        const key = `${o.s}|${o.f}|${o.p}|${cur}`;
         const ex = next.get(key);
         if (!ex || c < ex.cost) next.set(key, { key, cost: c, cur, s: o.s, back: prev, opt: o });
       }
@@ -65,7 +76,11 @@ export function applyFingering(score, maxPos = 9) {
     p.finger = st.opt.f;
     p.string = st.opt.s;
     note.pos = st.cur;
-    if (st.opt.p != null && st.opt.p !== lastPos) { note.posLabel = posName(st.opt.p); lastPos = st.opt.p; }
+    if (st.opt.p != null && st.opt.p !== lastPos) {
+      const lbl = st.opt.th ? 'Daumen' : posName(st.opt.p);
+      if (!(st.opt.th && lastPos >= 12)) note.posLabel = lbl;
+      lastPos = st.opt.p;
+    }
   });
   // Events bekommen Griff-Infos für Hinweise
   for (const ev of score.events) {
@@ -101,13 +116,18 @@ export function chordLabel(sym) {
   return sym.replace(/^Bb/, 'B♭').replace(/^B(?!♭)/, 'H').replace(/^([A-G])#/, '$1♯').replace(/^([A-G])b/, '$1♭').replace('maj7', 'maj7').replace('m7b5', 'ø');
 }
 
+// Daumen-Zeichen (Kreis mit Strich) für Noten und Griffbrett
+export function thumbMark(x, y, r, cls = '') {
+  return `<g class="${cls}"><circle cx="${x}" cy="${y - r * 0.35}" r="${r * 0.62}" fill="none" stroke="currentColor" stroke-width="${(r * 0.22).toFixed(2)}"/><line x1="${x}" x2="${x}" y1="${y + r * 0.27}" y2="${y + r}" stroke="currentColor" stroke-width="${(r * 0.22).toFixed(2)}"/></g>`;
+}
+
 // ---------- Griffbrett + Stimmgerät ----------
 const NS = 'http://www.w3.org/2000/svg';
 export class Fingerboard {
   constructor(host, opt = {}) {
     this.host = host;
     this.opt = opt;
-    this.frets = 13;
+    this.frets = opt.frets || 13;
     host.classList.add('fb-host');
     host.innerHTML = `
       <div class="fb-board"><svg class="fbsvg" viewBox="0 0 1000 210"></svg></div>
@@ -130,9 +150,9 @@ export class Fingerboard {
     let h = `<rect x="58" y="22" width="930" height="182" rx="10" class="fb-wood"/>`;
     h += `<rect x="52" y="20" width="12" height="186" rx="3" class="fb-nut"/>`;
     // Lagen-Markierungen (Finger 1)
-    for (const p of [1, 2, 3, 5, 7, 9, 11]) {
+    for (const p of [1, 2, 3, 5, 7, 9, 11, 12].filter(p => p <= this.frets)) {
       const x = this.x(p);
-      h += `<line x1="${x}" x2="${x}" y1="24" y2="202" class="fb-pos"/><text x="${x}" y="15" class="fb-pl">${posName(p)}</text>`;
+      h += `<line x1="${x}" x2="${x}" y1="24" y2="202" class="fb-pos"/><text x="${x}" y="15" class="fb-pl">${p === 12 ? 'Daumen' : posName(p)}</text>`;
     }
     // Halbton-Raster (dezent)
     for (let n = 1; n <= this.frets; n++) h += `<line x1="${this.x(n)}" x2="${this.x(n)}" y1="30" y2="196" class="fb-semi"/>`;
@@ -151,10 +171,11 @@ export class Fingerboard {
     this.grip = ev?.grip || null;
     if (!midis.length || !ev?.grip) { this.dots.innerHTML = ''; return; }
     const { s, f, fret } = ev.grip;
+    if (fret > this.frets) { this.frets = Math.min(22, fret + 2); this.draw(); }
     const [x, y] = this.spot(s, fret);
     let h = '';
     if (fret === 0) h += `<line x1="58" x2="988" y1="${y}" y2="${y}" class="fb-open"/>`;
-    h += `<circle cx="${x}" cy="${y}" r="17" class="fb-dot"/><text x="${x}" y="${y + 6}" class="fb-dt">${f}</text>`;
+    h += `<circle cx="${x}" cy="${y}" r="17" class="fb-dot"/>` + (f === 'T' ? thumbMark(x, y, 7, 'fb-th') : `<text x="${x}" y="${y + 6}" class="fb-dt">${f}</text>`);
     if (names) h += fret === 0 ? `<text x="${x + 34}" y="${y + 6}" class="fb-dn">${midiName(midis[0])}</text>` : `<text x="${x}" y="${y - 24}" class="fb-dn">${midiName(midis[0])}</text>`;
     this.dots.innerHTML = h;
   }

@@ -1,8 +1,10 @@
 import { REP_WORLD, REP_THEORY } from './bass-repertoire.js';
+import { PRO_BASS_WORLDS, PRO_BASS_THEORY } from './pro-content.js';
 // Kontrabass-Lehrplan: 6 Welten (Beginner I bis Intermediate III), Bogen und Pizzicato, Klassik und Jazz
 
 export const BASS_THEORY = {
   ...REP_THEORY,
+  ...PRO_BASS_THEORY,
   'b-schluessel': {
     title: 'Bassschlüssel & Oktavierung',
     html: `<p>Kontrabass-Noten stehen im <b>Bassschlüssel</b>. Die Besonderheit: Der Kontrabass <b>klingt eine Oktave tiefer</b>, als er notiert ist. So bleiben die Noten im System, statt auf vielen Hilfslinien darunter zu kleben.</p>
@@ -194,4 +196,5 @@ export const BASS_WORLDS = [
     boss: 'b-riesenschritte',
   },
   REP_WORLD,
+  ...PRO_BASS_WORLDS,
 ];
