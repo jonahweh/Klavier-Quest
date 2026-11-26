@@ -23,6 +23,12 @@ export const PIECES = {
     title: 'Ode an die Freude', by: 'L. v. Beethoven', style: 'Klassik', tempo: 84, key: 'C', ts: [4, 4],
     rh: 'E4:3/q E4:3 F4:4 G4:5 | G4:5 F4:4 E4:3 D4:2 | C4:1 C4:1 D4:2 E4:3 | E4:3/q. D4:2/e D4:2/h | E4:3/q E4:3 F4:4 G4:5 | G4:5 F4:4 E4:3 D4:2 | C4:1 C4:1 D4:2 E4:3 | D4:2/q. C4:1/e C4:1/h',
   },
+  // ---------- Wunschstücke
+  'schwanensee': {
+    title: 'Schwanensee – Thema', by: 'P. I. Tschaikowsky', style: 'Klassik', tempo: 72, key: 'A', ts: [4, 4],
+    rh: 'C#5:5/h F#4:1/e G#4:2 A4:3 B4:4 | C#5:5/q. A4:3/e C#5:5/q. A4:3/e | C#5:5/q. F#4:2/e A4:4 F#4:2 D4:1 A4:4 | F#4:2/w | C#5:5/h F#4:1/e G#4:2 A4:3 B4:4 | C#5:5/q. A4:3/e C#5:5/q. A4:3/e | C#5:5/q. F#4:2/e A4:4 F#4:2 D4:1 A4:4 | F#4:2/w',
+    lh: 'F#3+A3+C#4:5,3,1/w | F#3+A3+C#4:5,3,1/w | F#3+A3+C#4:5,3,1/h D3+F#3+A3:5,3,1/h | F#3+A3+C#4:5,3,1/w | F#2:5/e C#3:2 F#3:1 C#3:2 F#2:5 C#3:2 F#3:1 C#3:2 | F#2:5/e C#3:2 F#3:1 C#3:2 F#2:5 C#3:2 F#3:1 C#3:2 | F#2:5/e C#3:2 F#3:1 C#3:2 D2:5 A2:2 D3:1 A2:2 | F#2:5/e C#3:2 F#3:1 C#3:2 F#2+C#3+F#3:5,2,1/h',
+  },
   // ---------- Welt 2
   'wellen': {
     title: 'Wellen', by: 'Klavier-Quest', style: 'Soundtrack', tempo: 72, key: 'C', ts: [4, 4],

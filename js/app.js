@@ -1,5 +1,5 @@
 // Klavier-Quest – Hauptprogramm: Übersicht, Lektionen, Theorie, Ergebnisse, Erfolge, Einstellungen
-import { worldsFor, ALL_THEORY as THEORY } from './curriculum.js';
+import { worldsFor, FAVORITES, ALL_THEORY as THEORY } from './curriculum.js';
 import { PIECES as PIANO_PIECES } from './pieces.js';
 import { BASS_PIECES } from './bass-pieces.js';
 import { applyFingering, parseChords, chordLabel, TRANSPOSE, Fingerboard, OPEN, STRING_NAMES } from './bass.js';
@@ -90,6 +90,11 @@ function home() {
       <div class="world future"><div class="w-head"><span class="w-num">7+</span><div><h3>Pro · Ultra-God</h3><p>Weitere Welten folgen, sobald du hier durch bist.</p></div></div></div>
     </section>
 
+    <section class="favs">
+      <div class="sec-head"><h2>Wunschstücke</h2><span class="muted">Immer spielbar, egal wie weit du bist.</span></div>
+      <div class="fav-row">${FAVORITES[S.instrument].map(id => { const p = PIECES[id]; return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by)} · ${keyName(p.key, true)}</span></div>${starRow(stars('p-' + id))}</button>`; }).join('')}</div>
+    </section>
+
     <section class="extras">
       <button class="extra" data-go="sprint">${ICON.bolt}<b>Notenlese-Sprint</b><span>Bestwert ${S.stats.sprintBest}</span></button>
       <button class="extra" data-go="ear">${ICON.ear}<b>Gehörtraining</b><span>${S.stats.earCorrect} richtig</span></button>
@@ -100,8 +105,9 @@ function home() {
     <footer class="foot">Fortschritt wird auf diesem Gerät gespeichert. Übertragen per Sync-Code in den Einstellungen.</footer>
   </div>`;
   app.onclick = e => {
-    const b = e.target.closest('[data-go],[data-lesson],[data-boss],[data-inst]');
+    const b = e.target.closest('[data-go],[data-lesson],[data-boss],[data-inst],[data-fav]');
     if (!b) return;
+    if (b.dataset.fav) return runStep(FAV_WORLD(), null, { type: 'piece', id: 'p-' + b.dataset.fav, piece: b.dataset.fav });
     if (b.dataset.inst) { if (S.instrument !== b.dataset.inst) { S.instrument = b.dataset.inst; save(); } return home(); }
     if (b.dataset.go === 'tuner') return tuner();
     if (b.dataset.lesson) { const [wi, li] = b.dataset.lesson.split('-').map(Number); return lessonScreen(wi, li); }
@@ -116,6 +122,10 @@ function home() {
     if (g === 'review' && review) { taskDone('review'); runStep(review.world, review.lesson, review.step); }
   };
 }
+
+const FAV_WORLD = () => ({ id: isBass() ? 'bfav' : 'fav', hint: 1, maxPos: 9 });
+const KEY_MOLL = { C: 'a-Moll', G: 'e-Moll', D: 'h-Moll', A: 'fis-Moll', F: 'd-Moll', Bb: 'g-Moll', Eb: 'c-Moll' };
+function keyName(k, minor) { return minor ? KEY_MOLL[k] || k : k; }
 
 function stepLabel(n) {
   if (!n.lesson) return `Boss: ${PIECES[n.world.boss].title}`;

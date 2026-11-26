@@ -30,6 +30,12 @@ export const BASS_PIECES = {
     lh: 'F#3/q F#3 G3 A3 | A3 G3 F#3 E3 | D3 D3 E3 F#3 | F#3/q. E3/e E3/h | F#3/q F#3 G3 A3 | A3 G3 F#3 E3 | D3 D3 E3 F#3 | E3/q. D3/e D3/h',
     chords: 'D | A | D | A | D | A | D | A D',
   }),
+  // ---------- Wunschstücke
+  'b-schwanensee': B({
+    title: 'Schwanensee – Thema', by: 'P. I. Tschaikowsky', style: 'Klassik', tempo: 72, key: 'A', tech: 'arco', style2: 'klassisch',
+    lh: 'C#4/h F#3/e G#3 A3 B3 | C#4/q. A3/e C#4/q. A3/e | C#4/q. F#3/e A3 F#3 D3 A3 | F#3/w | C#4/h F#3/e G#3 A3 B3 | C#4/q. A3/e C#4/q. A3/e | C#4/q. F#3/e A3 F#3 D3 A3 | F#3/w',
+    chords: 'F#m | F#m | F#m D | F#m | F#m | F#m | F#m D | F#m',
+  }),
   // ---------- Welt 2
   'b-schleichkatze': B({
     title: 'Schleichkatze', style: 'Jazz', tempo: 76, key: 'F', tech: 'pizz', style2: 'straight',
