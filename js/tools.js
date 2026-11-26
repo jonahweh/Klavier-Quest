@@ -5,15 +5,19 @@ import { Input, Listener, Synth, Accomp, getCtx, unlockAudio } from './audio.js'
 import { Keyboard, ICON, esc } from './player.js';
 import { Fingerboard, applyFingering, parseChords, OPEN, TRANSPOSE } from './bass.js';
 import { S, save, addXP } from './store.js';
+import { PitchRoll } from './pitchroll.js';
 
 const isBass = () => S.instrument === 'bass';
+const isVoice = () => S.instrument === 'voice';
+const instKey = () => S.instrument || 'piano';
 const head = (title, lead = '') => `<header class="sub-top"><button class="icon-btn" data-a="back" aria-label="Zurück">${ICON.back}</button><h1>${title}</h1></header>${lead ? `<p class="lead">${lead}</p>` : ''}`;
 
 // =============== Einrichtungs-Assistent ===============
 export function setupWizard(root, back) {
-  const bass = isBass();
+  const bass = isBass(), voice = isVoice();
   const targets = bass
     ? [[28, 'leere E-Saite'], [33, 'leere A-Saite'], [38, 'leere D-Saite'], [43, 'leere G-Saite']]
+    : voice ? [[48, 'C3 – auf „a“ singen'], [52, 'E3'], [55, 'G3'], [50, 'D3']]
     : [[60, 'C4 (Mittel-C)'], [64, 'E4'], [67, 'G4'], [72, 'C5']];
   let unsub = null, timers = [];
   const clear = () => { unsub?.(); unsub = null; timers.forEach(clearTimeout); timers = []; Listener.setExpected([]); Listener.onLevel = null; };
@@ -24,7 +28,7 @@ export function setupWizard(root, back) {
   };
   // Schritt 1: Mikrofon
   async function step1() {
-    shell(1, `<h2>Mikrofon</h2><p>Leg dein Gerät nah an ${bass ? 'den Kontrabass (z. B. auf einen Stuhl neben dem Steg)' : 'das Keyboard (Lautsprecher-Seite zu den Tasten)'}. Ohne Kopfhörer ist am besten – mit AirPods wähle unten das eingebaute Mikrofon.</p>
+    shell(1, `<h2>Mikrofon</h2><p>Leg dein Gerät nah an ${bass ? 'den Kontrabass (z. B. auf einen Stuhl neben dem Steg)' : voice ? 'dich – etwa eine Armlänge entfernt, auf Brusthöhe' : 'das Keyboard (Lautsprecher-Seite zu den Tasten)'}. Ohne Kopfhörer ist am besten – mit AirPods wähle unten das eingebaute Mikrofon.</p>
       <div class="mt-meter big"><i></i></div>
       <select class="mic-sel"><option value="">Standard</option></select>
       <button class="btn primary big" data-n="1">${ICON.mic} Mikrofon starten</button>`);
@@ -37,7 +41,7 @@ export function setupWizard(root, back) {
       if (b.dataset.a === 'back') return done();
       if (b.dataset.n === '1') {
         try {
-          Listener.mode = bass ? 'bass' : 'piano';
+          Listener.mode = bass ? 'bass' : voice ? 'voice' : 'piano';
           await Listener.start(); Listener.sens = S.settings.sens; fill();
           Listener.onLevel = (l, n) => { const i = root.querySelector('.mt-meter i'); if (i) i.style.width = Math.max(0, Math.min(100, (l - n) / 30 * 100)) + '%'; };
           b.textContent = 'Weiter'; b.dataset.n = '2';
@@ -78,7 +82,7 @@ export function setupWizard(root, back) {
     unsub = Input.on(({ midi, cents }) => {
       const want = targets[i]?.[0];
       if (want == null) return;
-      if (midi === want || (bass && Math.abs(midi - want) === 12)) next(true, bass && cents != null ? Math.round(cents) : null);
+      if (midi === want || ((bass || voice) && Math.abs(midi - want) === 12)) next(true, bass && cents != null ? Math.round(cents) : null);
     });
     arm();
   }
@@ -115,7 +119,7 @@ export function setupWizard(root, back) {
     let txt = 'Timing nicht gemessen – der bisherige Wert bleibt.';
     if (lat != null) {
       const ms = Math.max(0, Math.min(250, Math.round(lat * 100) * 10));
-      if (bass) S.settings.latencyBass = ms; else S.settings.latency = ms;
+      if (bass || voice) S.settings.latencyBass = ms; else S.settings.latency = ms;
       txt = `Verzögerung: ${ms} ms – im Rhythmus-Modus wird das jetzt automatisch ausgeglichen.`;
     }
     S.settings.setupDone = true; save();
@@ -130,13 +134,13 @@ export function setupWizard(root, back) {
 // =============== Schwachstellen ===============
 export function statsScreen(root, back, play) {
   const bass = isBass();
-  const data = (S.noteStats && S.noteStats[bass ? 'bass' : 'piano']) || {};
+  const data = (S.noteStats && S.noteStats[instKey()]) || {};
   const rows = Object.entries(data).map(([m, v]) => ({ m: +m, ...v, rate: v.n ? v.err / v.n : 0, cents: v.cn ? Math.round(v.c / v.cn) : null })).filter(r => r.n >= 3);
   rows.sort((a, b) => b.rate - a.rate || (b.cents || 0) - (a.cents || 0));
   const label = m => midiLabel(bass ? m - TRANSPOSE : m);
   const weak = rows.filter(r => r.rate > 0.1 || (r.cents != null && r.cents > 20)).slice(0, 6);
   root.innerHTML = `<div class="page narrow">${head('Deine Schwachstellen', 'Die App merkt sich bei jedem Spielen, welche Töne danebengehen. Hier siehst du, wo es noch hakt – und kannst genau diese Töne üben.')}
-    ${rows.length ? `<table class="stat-table"><thead><tr><th>Ton</th><th>gespielt</th><th>Fehlerquote</th>${bass ? '<th>Intonation</th>' : ''}</tr></thead><tbody>
+    ${rows.length ? `<table class="stat-table"><thead><tr><th>Ton</th><th>gespielt</th><th>Fehlerquote</th>${bass || isVoice() ? '<th>Intonation</th>' : ''}</tr></thead><tbody>
       ${rows.slice(0, 24).map(r => `<tr><td><b>${label(r.m)}</b></td><td class="num">${r.n}</td><td><span class="bar"><i style="width:${Math.round(r.rate * 100)}%" class="${r.rate > 0.3 ? 'bad' : r.rate > 0.1 ? 'mid' : ''}"></i></span> ${Math.round(r.rate * 100)} %</td>${bass ? `<td class="num">${r.cents != null ? r.cents + ' ct' : '–'}</td>` : ''}</tr>`).join('')}
     </tbody></table>` : '<p class="muted">Noch zu wenig Daten. Spiel ein paar Stücke, dann erscheint hier deine Auswertung.</p>'}
     ${weak.length >= 2 ? `<button class="btn primary big" data-a="drill">${ICON.wand} Gezielt üben: ${weak.map(r => label(r.m).replace(/\d/, '')).join(', ')}</button>` : ''}
@@ -145,13 +149,13 @@ export function statsScreen(root, back, play) {
   root.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.a === 'back') back();
-    if (b.dataset.a === 'reset') { if (S.noteStats) delete S.noteStats[bass ? 'bass' : 'piano']; save(); statsScreen(root, back, play); }
+    if (b.dataset.a === 'reset') { if (S.noteStats) delete S.noteStats[instKey()]; save(); statsScreen(root, back, play); }
     if (b.dataset.a === 'drill') {
       let ms = weak.map(r => r.m);
       if (ms.length < 4) ms = [...new Set([...ms, ...rows.slice(0, 6).map(r => r.m)])];
       const tok = m => pitchFromMidi(bass ? m - TRANSPOSE : m);
       let cfg;
-      if (bass) cfg = { layout: 'b', b: ms.sort((a, b) => a - b).map(tok), patterns: ['qh'], bars: 8, tempo: 66 };
+      if (bass || isVoice()) cfg = { layout: 'b', b: ms.sort((a, b) => a - b).map(tok), patterns: ['qh'], bars: 8, tempo: 66 };
       else {
         const t = ms.filter(m => m >= 60).sort((a, b) => a - b).map(tok), bb = ms.filter(m => m < 60).sort((a, b) => a - b).map(tok);
         cfg = t.length && bb.length ? { layout: 'alt', t: t.length > 1 ? t : [...t, 'C4'], b: bb.length > 1 ? bb : [...bb, 'C3'], patterns: ['qh'], bars: 8, tempo: 66 }
@@ -249,13 +253,15 @@ export function jamSession(root, back) {
   const render = () => {
     root.innerHTML = `<div class="page narrow jam">${head('Jam-Session', 'Improvisieren über eine Begleitung: Jeder Ton aus der angezeigten Tonleiter passt. Es gibt kein Richtig oder Falsch – nur „klingt gut“ und „klingt spannend“.')}
       <div class="seg">${JAMS.map(j => `<button class="${j === jam ? 'on' : ''}" data-j="${j.id}">${j.name}</button>`).join('')}</div>
-      <p class="hint-line">${bass ? 'Tipp für Bass: Spiel auf der „Eins“ jedes Taktes den Grundton des Akkords, dazwischen Töne aus der Tonleiter.' : 'Tipp: Linke Hand Grundton, rechte Hand Melodie aus der Tonleiter.'}</p>
+      <p class="hint-line">${bass ? 'Tipp für Bass: Spiel auf der „Eins“ jedes Taktes den Grundton des Akkords, dazwischen Töne aus der Tonleiter.' : S.instrument === 'voice' ? 'Tipp: Sing auf „du-ba“ kurze Motive aus der Tonleiter. Starte mit dem Grundton und wiederhole Ideen leicht verändert.' : 'Tipp: Linke Hand Grundton, rechte Hand Melodie aus der Tonleiter.'}</p>
       <div class="jam-stage"><div class="jam-chord">–</div><div class="jam-scale">${jam.scaleName}</div><div class="jam-score"><span class="g">0</span> passend · <span class="b">0</span> spannend</div></div>
       <div class="kb jam-kb"></div>
       <button class="btn primary big" data-a="go">${ICON.jam} Jam starten (${loops}× Durchlauf)</button></div>`;
     const host = root.querySelector('.kb');
-    const kb = bass ? new Fingerboard(host, { tol: 30 }) : new Keyboard(host, 48, 83);
-    if (!bass) kb.hint(Array.from({ length: 36 }, (_, i) => 48 + i).filter(m => jam.scale.includes(m % 12)));
+    const voice = S.instrument === 'voice';
+    const kb = bass ? new Fingerboard(host, { tol: 30 }) : voice ? new PitchRoll(host, { tol: 50 }) : new Keyboard(host, 48, 83);
+    if (voice) Listener.onPitch = p => kb.setPitch(p);
+    if (!bass && !voice) kb.hint(Array.from({ length: 36 }, (_, i) => 48 + i).filter(m => jam.scale.includes(m % 12)));
     root.kb = kb;
   };
   const stop = () => { running = false; cancelAnimationFrame(raf); unsub?.(); unsub = null; Accomp.stop(); Synth.stopAll(); Listener.setExpected([]); };
@@ -267,7 +273,8 @@ export function jamSession(root, back) {
     if (b.dataset.a === 'go') {
       if (running) { stop(); b.innerHTML = `${ICON.jam} Jam starten`; finish(); return; }
       await unlockAudio();
-      Listener.mode = bass ? 'bass' : 'piano';
+      Listener.mode = bass ? 'bass' : S.instrument === 'voice' ? 'voice' : 'piano';
+      if (S.instrument === 'voice') Listener.onPitch = p => root.kb?.setPitch(p);
       if (S.settings.input === 'mic') { try { await Listener.start(); Listener.sens = S.settings.sens; } catch (err) { /* Touch */ } }
       Listener.setExpected([]);
       running = true; good = 0; bad = 0;
@@ -314,7 +321,7 @@ export function jamSession(root, back) {
 // =============== Eigene Stücke ===============
 export function customList(root, back, play) {
   const bass = isBass();
-  const mine = Object.entries(S.custom || {}).filter(([, p]) => (p.inst || 'piano') === (bass ? 'bass' : 'piano'));
+  const mine = Object.entries(S.custom || {}).filter(([, p]) => (p.inst || 'piano') === instKey());
   root.innerHTML = `<div class="page narrow">${head('Eigene Stücke', 'Tipp eigene Stücke oder Stimmen ab – zum Beispiel aus dem Orchester oder Musical. Sie erscheinen bei den Wunschstücken und werden mit dem Fortschritt synchronisiert.')}
     <button class="btn primary big" data-a="new">${ICON.edit} Neues Stück</button>
     <ul class="lib">${mine.map(([id, p]) => `<li><button data-play="${id}">${ICON.note}<b>${esc(p.title)}</b><span class="muted">${esc(p.by || '')}</span></button><button class="icon-btn" data-edit="${id}" aria-label="Bearbeiten">${ICON.edit}</button></li>`).join('') || '<li class="muted">Noch keine eigenen Stücke.</li>'}</ul>
@@ -328,8 +335,8 @@ export function customList(root, back, play) {
   };
 }
 export function customEditor(root, id, back) {
-  const bass = isBass();
-  const p = (id && S.custom?.[id]) || { title: '', by: '', key: 'C', ts: [4, 4], tempo: 80, tech: 'arco', rh: '', lh: '', chords: '', inst: bass ? 'bass' : 'piano' };
+  const bass = isBass(), voice = isVoice();
+  const p = (id && S.custom?.[id]) || { title: '', by: '', key: 'C', ts: [4, 4], tempo: 80, tech: 'arco', rh: '', lh: '', voice: '', chords: '', inst: instKey() };
   const keys = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb'];
   const tss = ['4/4', '3/4', '2/4', '6/8', '2/2'];
   root.innerHTML = `<div class="page narrow editor">${head(id ? 'Stück bearbeiten' : 'Neues Stück')}
@@ -343,6 +350,7 @@ export function customEditor(root, id, back) {
       </div>
       ${bass ? `<label>Spielweise <select class="inp" data-f="tech"><option value="arco" ${p.tech !== 'pizz' ? 'selected' : ''}>arco (Bogen)</option><option value="pizz" ${p.tech === 'pizz' ? 'selected' : ''}>pizz. (gezupft)</option></select></label>
         <label>Basslinie (wie notiert)<textarea class="inp code" rows="5" data-f="lh" placeholder="G2/q A2 B2 C3 | D3/h G2/h">${esc(p.lh || '')}</textarea></label>`
+      : voice ? `<label>Deine Stimme (Bassschlüssel, wie gesungen)<textarea class="inp code" rows="5" data-f="voice" placeholder="D3/q G3 B3 A3 | G3/h D3/h">${esc(p.voice || '')}</textarea></label>`
       : `<label>Rechte Hand (Violinschlüssel)<textarea class="inp code" rows="4" data-f="rh" placeholder="C4/q D4 E4 F4 | G4/w">${esc(p.rh || '')}</textarea></label>
         <label>Linke Hand (Bassschlüssel, optional)<textarea class="inp code" rows="3" data-f="lh" placeholder="C3/w | G2/w">${esc(p.lh || '')}</textarea></label>`}
       <label>Akkorde für die Begleitung (optional, ein Eintrag pro Takt)<input class="inp code" data-f="chords" value="${esc(p.chords || '')}" placeholder="C | G | Am | F"></label>
@@ -357,17 +365,19 @@ export function customEditor(root, id, back) {
   const read = () => {
     const q = f => root.querySelector(`[data-f="${f}"]`);
     const ts = q('ts').value.split('/').map(Number);
-    const piece = { title: q('title').value.trim() || 'Ohne Titel', by: q('by').value.trim(), key: q('key').value, ts, tempo: Math.max(30, Math.min(220, +q('tempo').value || 80)), inst: bass ? 'bass' : 'piano', style: 'Eigenes Stück' };
+    const piece = { title: q('title').value.trim() || 'Ohne Titel', by: q('by').value.trim(), key: q('key').value, ts, tempo: Math.max(30, Math.min(220, +q('tempo').value || 80)), inst: instKey(), style: 'Eigenes Stück' };
     if (bass) { piece.lh = q('lh').value.trim(); piece.tech = q('tech').value; piece.style2 = 'klassisch'; }
+    else if (voice) { piece.voice = q('voice').value.trim(); piece.style2 = 'klassisch'; }
     else { piece.rh = q('rh').value.trim(); const l = q('lh').value.trim(); if (l) piece.lh = l; piece.style2 = 'klassisch'; }
     const c = q('chords').value.trim(); if (c) piece.chords = c;
     return piece;
   };
   const preview = () => {
+    if (!root.querySelector('[data-f="ts"]')) return false;
     const piece = read();
     const err = root.querySelector('.ed-err');
     try {
-      if (!(piece.rh || piece.lh)) throw new Error('Noch keine Noten eingegeben.');
+      if (!(piece.rh || piece.lh || piece.voice)) throw new Error('Noch keine Noten eingegeben.');
       const errs = validatePiece(piece);
       if (piece.chords) { const n = piece.chords.split('|').length; parseChords(piece.chords, piece.ts[0] * 4 / piece.ts[1]); errs.push(...[]); }
       const sc = buildScore(bass ? { ...piece, transpose: TRANSPOSE, staves: [piece.clefs?.lh === 't' ? 't' : 'b'] } : piece);
@@ -381,13 +391,13 @@ export function customEditor(root, id, back) {
   root.oninput = () => { clearTimeout(root._pt); root._pt = setTimeout(preview, 500); };
   root.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.a === 'back') { root.oninput = null; return back(); }
+    if (b.dataset.a === 'back') { root.oninput = null; clearTimeout(root._pt); return back(); }
     if (b.dataset.a === 'prev') preview();
     if (b.dataset.a === 'save') {
       if (!preview()) return;
       const nid = id || 'c-' + Date.now().toString(36);
       (S.custom ||= {})[nid] = read();
-      save(); root.oninput = null; back();
+      save(); root.oninput = null; clearTimeout(root._pt); back();
     }
     if (b.dataset.a === 'del' && id) { delete S.custom[id]; save(); root.oninput = null; back(); }
   };

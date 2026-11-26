@@ -3,10 +3,12 @@ import { G } from './glyphs.js';
 import { KEYS, KEY_ORDER, germanName } from './score.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const TOP = { t: 38, b: 26 };      // Schritt der obersten Linie (F5 / A3)
-const MID = { t: 34, b: 22 };      // Mittellinie (H4 / D3)
+const TOP = { t: 38, b: 26, v: 26, w: 38, u: 38 };      // Schritt der obersten Linie (F5 / A3)
+const MID = { t: 34, b: 22, v: 22, w: 34, u: 34 };      // Mittellinie (H4 / D3)
 const SHARP_STEPS = { t: [38, 35, 39, 36, 33, 37, 34], b: [24, 21, 25, 22, 19, 23, 20] };
+SHARP_STEPS.v = SHARP_STEPS.b; SHARP_STEPS.w = SHARP_STEPS.u = SHARP_STEPS.t;
 const FLAT_STEPS = { t: [34, 37, 33, 36, 32, 35, 31], b: [20, 23, 19, 22, 18, 21, 17] };
+FLAT_STEPS.v = FLAT_STEPS.b; FLAT_STEPS.w = FLAT_STEPS.u = FLAT_STEPS.t;
 
 function thumbSym(x, y, r) {
   const w = (r * 0.28).toFixed(2);
@@ -43,7 +45,8 @@ export function renderScore(svg, score, opt = {}) {
   for (const st of staves) {
     for (let l = 0; l < 5; l++) out += `<rect class="ln" x="6" y="${top[st] + l * S - 0.6}" width="${width - 12}" height="1.2"/>`;
     // Schlüssel
-    if (st === 't') out += glyph('gClef', 12, top[st] + 3 * S, 'cl');
+    if (st === 't' || st === 'w' || st === 'u') out += glyph('gClef', 12, top[st] + 3 * S, 'cl');
+    if (st === 'w') out += `<text class="cl8" x="${12 + 1.25 * S}" y="${top[st] + 6.6 * S}" style="font-size:${(S * 1.05).toFixed(1)}px">8</text>`;
     else out += glyph('fClef', 12, top[st] + S, 'cl');
     // Tonart
     const order = sharpKey ? SHARP_STEPS[st] : FLAT_STEPS[st];
@@ -202,7 +205,7 @@ export function renderScore(svg, score, opt = {}) {
     }
     const ev = n.ev;
     if (ev != null) (evGroups[ev] ||= []).push(g);
-    else out += g;
+    else out += n.acc ? `<g class="acc">${g}</g>` : g;
   }
   for (const [ev, gs] of Object.entries(evGroups)) out += `<g class="ev" data-ev="${ev}">${gs.join('')}</g>`;
 

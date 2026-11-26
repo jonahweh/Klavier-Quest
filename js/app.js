@@ -2,6 +2,8 @@
 import { worldsFor, FAVORITES, ALL_THEORY as THEORY } from './curriculum.js';
 import { PIECES as PIANO_PIECES } from './pieces.js';
 import { BASS_PIECES } from './bass-pieces.js';
+import { VOICE_PIECES, CHOIR_PIECES, CHOIR_FOLDERS, VOICE_RANGES } from './voice-content.js';
+import { warmupScreen } from './voice.js';
 import { applyFingering, parseChords, chordLabel, TRANSPOSE, Fingerboard, OPEN, STRING_NAMES } from './bass.js';
 import { buildScore, generateDrill, midiLabel } from './score.js';
 import { renderScore } from './notation.js';
@@ -15,10 +17,12 @@ import {
   totalStars, ACHIEVEMENTS, setNotifier, exportCode, importCode, resetAll, taskDone, checkAchievements,
 } from './store.js';
 
-const PIECES = { ...PIANO_PIECES, ...BASS_PIECES };
+const PIECES = { ...PIANO_PIECES, ...BASS_PIECES, ...VOICE_PIECES, ...CHOIR_PIECES };
 const P = id => (S.custom && S.custom[id]) || PIECES[id];
 const W = () => worldsFor(S.instrument);
 const isBass = () => S.instrument === 'bass';
+const isVoice = () => S.instrument === 'voice';
+const INST_NAME = { piano: 'Klavier', bass: 'Kontrabass', voice: 'Gesang' };
 const app = document.getElementById('app');
 const toasts = document.getElementById('toasts');
 let current = null;   // aktiver Player
@@ -53,7 +57,7 @@ function home() {
   // Tagesplan
   const review = findReview();
   const tasks = [
-    { id: 'warmup', t: 'Aufwärmen', d: 'Notenlese-Sprint, 1 Minute', go: 'sprint' },
+    isVoice() ? { id: 'voicewarm', t: 'Einsingen', d: '5 Minuten Stimmübungen', go: 'warmup' } : { id: 'warmup', t: 'Aufwärmen', d: 'Notenlese-Sprint, 1 Minute', go: 'sprint' },
     { id: 'lesson', t: 'Neues lernen', d: nx ? stepLabel(nx) : 'Alles geschafft!', go: 'next' },
     { id: 'ear', t: 'Ohr trainieren', d: 'Eine Runde Gehörtraining', go: 'ear' },
     ...(review ? [{ id: 'review', t: 'Wiederholen', d: review.title + ' für mehr Sterne', go: 'review' }] : []),
@@ -63,8 +67,7 @@ function home() {
     <header class="top">
       <div class="logo">${LOGO}<span>Klavier-Quest</span></div>
       <div class="seg inst" role="tablist" aria-label="Instrument">
-        <button data-inst="piano" class="${isBass() ? '' : 'on'}">Klavier</button>
-        <button data-inst="bass" class="${isBass() ? 'on' : ''}">Kontrabass</button>
+        ${['piano', 'bass', 'voice'].map(k => `<button data-inst="${k}" class="${S.instrument === k ? 'on' : ''}">${INST_NAME[k]}</button>`).join('')}
       </div>
       <div class="chips">
         <span class="chip streak ${S.streak.count ? 'hot' : ''}" title="Tage in Folge">${ICON.flame}<b>${S.streak.count}</b></span>
@@ -73,7 +76,7 @@ function home() {
       </div>
     </header>
 
-    ${S.settings.setupDone ? '' : `<div class="setup-banner">${ICON.wand}<div><b>Einmal einrichten (2 Minuten)</b><br><span class="muted">Die App stellt Mikrofon, Empfindlichkeit und Timing auf dein ${isBass() ? 'Kontrabass' : 'Keyboard'} ein.</span></div><button class="btn primary small" data-go="setup">Starten</button></div>`}
+    ${S.settings.setupDone ? '' : `<div class="setup-banner">${ICON.wand}<div><b>Einmal einrichten (2 Minuten)</b><br><span class="muted">Die App stellt Mikrofon, Empfindlichkeit und Timing auf dein ${isVoice() ? 'Singen' : isBass() ? 'Kontrabass' : 'Keyboard'} ein.</span></div><button class="btn primary small" data-go="setup">Starten</button></div>`}
     <section class="today">
       <div class="today-main">
         <svg class="ring" viewBox="0 0 76 76"><circle cx="38" cy="38" r="${R}" class="ring-bg"/><circle cx="38" cy="38" r="${R}" class="ring-fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - dayPct)}"/></svg>
@@ -89,21 +92,23 @@ function home() {
     </section>
 
     <section class="worlds">
-      <div class="sec-head"><h2>Deine Reise · ${isBass() ? 'Kontrabass' : 'Klavier'}</h2><span class="muted">${totalStars()} Sterne · Schon fit? Jeder Boss ist direkt spielbar.</span></div>
+      <div class="sec-head"><h2>Deine Reise · ${INST_NAME[S.instrument] || 'Klavier'}</h2><span class="muted">${totalStars()} Sterne · Schon fit? Jeder Boss ist direkt spielbar.</span></div>
       ${W().map((w, wi) => worldCard(w, wi)).join('')}
     </section>
 
-    <section class="favs">
+    ${isVoice() ? choirSection() : ''}
+    <section class="favs" ${isVoice() ? 'hidden' : ''}>
       <div class="sec-head"><h2>Wunschstücke</h2><span class="muted">Immer spielbar, egal wie weit du bist. <button class="link-btn" data-go="custom">+ Eigenes Stück</button></span></div>
       <div class="fav-row">${[...Object.keys(S.custom || {}).filter(id => (S.custom[id].inst || 'piano') === S.instrument), ...FAVORITES[S.instrument]].map(id => { const p = P(id); return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by || 'Eigenes Stück')} · ${keyLabel(p)}</span></div>${starRow(stars('p-' + id))}</button>`; }).join('')}</div>
     </section>
 
     <section class="extras">
+      ${isVoice() ? `<button class="extra" data-go="warmup">${ICON.mic}<b>Einsingen</b><span>5 Minuten</span></button>` : ''}
       <button class="extra" data-go="sprint">${ICON.bolt}<b>Notenlese-Sprint</b><span>Bestwert ${S.stats.sprintBest}</span></button>
       <button class="extra" data-go="ear">${ICON.ear}<b>Gehörtraining</b><span>${S.stats.earCorrect} richtig</span></button>
       ${isBass() ? `<button class="extra" data-go="tuner">${ICON.tuner}<b>Stimmgerät</b><span>E · A · D · G</span></button>` : ''}
       <button class="extra" data-go="library">${ICON.book}<b>Theorie</b><span>${W().flatMap(w => w.lessons.flatMap(l => l.steps)).filter(s => s.type === 'theory').length} Karten</span></button>
-      <button class="extra" data-go="scale">${ICON.scale}<b>Tonleitern</b><span>Dur & Moll</span></button>
+      ${isVoice() ? '' : `<button class="extra" data-go="scale">${ICON.scale}<b>Tonleitern</b><span>Dur & Moll</span></button>`}
       <button class="extra" data-go="jam">${ICON.jam}<b>Jam-Session</b><span>Improvisieren</span></button>
       <button class="extra" data-go="stats">${ICON.chart}<b>Schwachstellen</b><span>gezielt üben</span></button>
       <button class="extra" data-go="custom">${ICON.edit}<b>Eigene Stücke</b><span>${Object.values(S.custom || {}).filter(p => (p.inst || 'piano') === S.instrument).length} gespeichert</span></button>
@@ -117,6 +122,7 @@ function home() {
     if (b.dataset.fav) return runStep(FAV_WORLD(), null, { type: 'piece', id: 'p-' + b.dataset.fav, piece: b.dataset.fav });
     if (b.dataset.inst) { if (S.instrument !== b.dataset.inst) { S.instrument = b.dataset.inst; save(); } return home(); }
     if (b.dataset.go === 'tuner') return tuner();
+    if (b.dataset.go === 'warmup') { destroyPlayer(); return warmupScreen(app, home); }
     if (b.dataset.go === 'setup') { destroyPlayer(); return setupWizard(app, home); }
     if (b.dataset.go === 'stats') { destroyPlayer(); return statsScreen(app, home, playTool); }
     if (b.dataset.go === 'scale') { destroyPlayer(); return scaleTrainer(app, home, playTool); }
@@ -137,7 +143,19 @@ function home() {
 
 // Werkzeuge starten eigene Übungen (ohne Lektion)
 function playTool(step, back) { runStep(FAV_WORLD(), null, step, back); }
-const FAV_WORLD = () => ({ id: isBass() ? 'bfav' : 'fav', hint: 1, maxPos: 9 });
+const FAV_WORLD = () => ({ id: isBass() ? 'bfav' : isVoice() ? 'vfav' : 'fav', hint: 1, maxPos: 9 });
+
+// Gesang: Probenmappe mit den Chorstücken (Musical, Schulchor) und eigenen Stimmen
+function choirSection() {
+  const own = Object.keys(S.custom || {}).filter(id => S.custom[id].inst === 'voice');
+  const card = id => { const p = P(id); return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by || 'Eigenes Stück')}${p.parts ? ' · Chor' : ''}</span></div>${starRow(stars('p-' + id))}</button>`; };
+  return `<section class="favs choir">
+    <div class="sec-head"><h2>Probenmappe</h2><span class="muted">Deine Chorstücke – immer spielbar. <button class="link-btn" data-go="custom">+ Eigene Stimme</button></span></div>
+    ${CHOIR_FOLDERS.map(f => { const ids = Object.keys(CHOIR_PIECES).filter(id => CHOIR_PIECES[id].folder === f.id); return `<div class="folder"><h3>${esc(f.title)}</h3><p class="muted">${esc(f.blurb)}</p>
+      <div class="fav-row">${ids.length ? ids.map(card).join('') : '<div class="empty-folder">Noch leer – schick mir die Noten (PDF oder Fotos) im Chat, dann erscheinen die Stücke hier.</div>'}</div></div>`; }).join('')}
+    ${own.length ? `<div class="folder"><h3>Eigene Stimmen</h3><div class="fav-row">${own.map(card).join('')}</div></div>` : ''}
+  </section>`;
+}
 const KEY_DE = { C: 'C', G: 'G', D: 'D', A: 'A', E: 'E', F: 'F', Bb: 'B', Eb: 'Es' };
 const MINOR_DE = { A: 'a', E: 'e', B: 'h', 'F#': 'fis', 'C#': 'cis', D: 'd', G: 'g', C: 'c', F: 'f' };
 // Tonart aus dem ersten Akkord (Dur/Moll) bzw. der Vorzeichnung
@@ -245,13 +263,22 @@ function runStep(world, lesson, step, back) {
   }, back);
   let piece, title, sub;
   const bass = world.id.startsWith('b');
+  const voice = world.id.startsWith('v');
   if (step.type === 'drill') {
     piece = step.fixed ? { ...step.fixed } : generateDrill(step.cfg, Date.now());
     if (bass) piece.tech = step.cfg.tech || 'arco';
     title = step.title; sub = step.fixed ? 'Übung' : 'Blattspiel-Übung · neue Noten bei jedem Versuch';
   } else {
     const p = P(step.piece);
-    piece = p; title = p.title; sub = `${p.by} · ${p.style}${bass ? (p.tech === 'pizz' ? ' · Pizzicato' : ' · Arco') : ''}${step.boss ? ' · Boss' : ''}`;
+    piece = p; title = p.title; sub = `${p.by || 'Eigenes Stück'} · ${p.style}${bass ? (p.tech === 'pizz' ? ' · Pizzicato' : ' · Arco') : ''}${step.boss ? ' · Boss' : ''}`;
+  }
+  let partSel = null;
+  if (voice && piece.parts) {
+    const opts = Object.keys(piece.parts);
+    const def = S.settings.voiceType === 'tenor' && piece.parts.T ? 'T' : piece.parts.B ? 'B' : opts[opts.length - 1];
+    const sel = (S.voicePart && S.voicePart[step.piece]) || piece.defaultPart || def;
+    piece = { ...piece, sel };
+    partSel = { options: opts, cur: sel, onChange: k => { (S.voicePart ||= {})[step.piece] = k; save(); runStep(world, lesson, step, back); } };
   }
   if (bass && step.type === 'drill' && step.cfg.clef === 't') piece = { ...piece, clefs: { lh: 't' } };
   if (bass) piece = { ...piece, transpose: TRANSPOSE, staves: [piece.clefs?.lh === 't' ? 't' : 'b'] };
@@ -261,7 +288,7 @@ function runStep(world, lesson, step, back) {
   app.innerHTML = '';
   app.onclick = null;
   current = new Player(app, {
-    score, title, sub, bass, pkey: (bass ? 'b:' : 'p:') + (step.piece || step.id), boss: !!step.boss, hint: step.boss ? Math.min(1, hintFor(world)) : hintFor(world),
+    score, title, sub, bass, voice, partSel, pkey: (bass ? 'b:' : voice ? 'v:' + (score.part ? score.part + ':' : '') : 'p:') + (step.piece || step.id), boss: !!step.boss, hint: step.boss ? Math.min(1, hintFor(world)) : hintFor(world),
     onExit: back,
     onFinish: (res, pl) => results(world, lesson, step, res, pl, back),
   });
@@ -300,7 +327,7 @@ function results(world, lesson, step, res, pl, back) {
         <div><b>${res.best}</b><span>beste Combo</span></div>
         <div><b>+${gained}</b><span>XP</span></div>
       </div>
-      ${res.inton != null ? `<p class="inton-line">Intonation: im Schnitt <b>${res.inton} Cent</b> daneben${res.inton <= 10 ? ' – sehr sauber!' : res.inton <= 20 ? ' – gut.' : ' – achte auf die Nadel.'}</p>` : ''}
+      ${res.inton != null ? `<p class="inton-line">Intonation: im Schnitt <b>${res.inton} Cent</b> daneben${res.inton <= 10 ? ' – sehr sauber!' : res.inton <= 20 ? ' – gut.' : ' – achte auf die Anzeige.'}</p>` : ''}
       ${note ? `<p class="note">${note}</p>` : ''}
       ${pl.rec ? `<div class="rec-row"><button class="btn ghost small" data-r="play">${ICON.play} Aufnahme anhören</button><audio class="rec-audio" controls hidden></audio></div>` : ''}
       ${st > prev && prev > 0 ? '<p class="badge">Neuer Bestwert!</p>' : ''}
@@ -377,6 +404,7 @@ function theoryScreen(id, onDone, back) {
       sc.events.forEach((ev, i) => {
         ev.notes.forEach(n => n.pitches.forEach(p => n.tiedFrom ? null : t.bass
           ? Synth.bass(p.midi + TRANSPOSE, t0 + n.beat * spb, n.dur * spb * 0.9, sc.tech === 'pizz', 0.9)
+          : t.voice ? Synth.voice(p.midi, t0 + n.beat * spb, n.dur * spb * 0.92)
           : Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95)));
         timers.push(setTimeout(() => { els.forEach(g => g?.classList.remove('cur')); els[i]?.classList.add('cur'); }, (ev.beat * spb + 0.1) * 1000));
       });
@@ -489,6 +517,10 @@ function settings() {
       <label>Hilfen</label>
       ${seg('hints', [['auto', 'Automatisch'], ['2', 'Namen + Tasten'], ['1', 'Nur Tasten'], ['0', 'Keine']])}
       <p class="hint-line">Automatisch: In Welt 1 mit Notennamen, in Welt 2 nur leuchtende Tasten, danach ohne. Bleibst du hängen, hilft die App nach 7 Sekunden.</p>
+      <label>Stimmlage (Gesang)</label>
+      ${seg('voiceType', Object.entries(VOICE_RANGES).map(([k, v]) => [k, v.label]))}
+      <label>Intonation (Gesang)</label>
+      ${seg('intonVoice', [['streng', 'Streng ±15 ct'], ['mittel', 'Mittel ±25 ct'], ['locker', 'Locker ±40 ct']])}
       <label>Intonation (Kontrabass)</label>
       ${seg('inton', [['streng', 'Streng ±15 ct'], ['mittel', 'Mittel ±25 ct'], ['locker', 'Locker ±40 ct']])}
       <label>Begleitung (Kontrabass, Rhythmus-Modus)</label>
@@ -596,7 +628,7 @@ function settings() {
     if (a === 'cloud-now') { $('.cloud-st').textContent = 'Synchronisiere …'; await Cloud.sync(); $('.cloud-st').textContent = Cloud.status || 'Kein Token hinterlegt.'; }
     if (a === 'cloud-off') { Cloud.setToken(''); return settings(); }
     if (a === 'mictest') {
-      try { Listener.mode = isBass() ? 'bass' : 'piano'; await Listener.start(); Listener.sens = st.sens; testing = true; fillMics(); Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
+      try { Listener.mode = isBass() ? 'bass' : isVoice() ? 'voice' : 'piano'; await Listener.start(); Listener.sens = st.sens; testing = true; fillMics(); Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
       catch (err) { $('.mt-note').textContent = 'Kein Zugriff aufs Mikrofon'; }
     }
     if (a === 'midi') {

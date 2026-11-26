@@ -61,12 +61,12 @@ export function makeEvents(notes, tr = 0) {
   const map = new Map();
   for (const n of notes) {
     n.ev = undefined;
-    if (n.rest || n.tiedFrom) continue;
+    if (n.rest || n.tiedFrom || n.acc) continue;
     const k = Math.round(n.beat * 1000);
     if (!map.has(k)) map.set(k, { beat: n.beat, midis: [], notes: [] });
     const e = map.get(k);
     e.notes.push(n);
-    for (const p of n.pitches) if (!e.midis.includes(p.midi)) e.midis.push(p.midi);
+    for (const p of n.pitches) { const m = p.midi + (n.oct || 0); if (!e.midis.includes(m)) e.midis.push(m); }
   }
   const events = [...map.values()].sort((a, b) => a.beat - b.beat);
   events.forEach((e, i) => { e.i = i; e.midis = e.midis.map(m => m + tr).sort((a, b) => a - b); e.notes.forEach(n => (n.ev = i)); });
@@ -80,7 +80,9 @@ export function sliceScore(score, a, b) {
   const events = makeEvents(notes, score.transpose || 0);
   for (const ev of events) { const o = score.events.find(x => Math.abs(x.beat - (ev.beat + s)) < 1e-6); if (o && o.grip) ev.grip = o.grip; }
   const all = notes.flatMap(n => n.pitches.map(p => p.midi + (score.transpose || 0)));
-  return { ...score, notes, events, total: e - s, offset: s, barOffset: a - 1, lo: all.length ? Math.min(...all) : score.lo, hi: all.length ? Math.max(...all) : score.hi, full: score.full || score };
+  const cut = ns => ns.filter(n => n.beat >= s - 1e-6 && n.beat < e - 1e-6).map(n => ({ ...n, beat: n.beat - s, tiedFrom: n.tiedFrom && n.beat > s + 1e-6 }));
+  const accParts = score.accParts ? score.accParts.map(pt => ({ ...pt, notes: cut(pt.notes) })) : null;
+  return { ...score, accParts, notes, events, total: e - s, offset: s, barOffset: a - 1, lo: all.length ? Math.min(...all) : score.lo, hi: all.length ? Math.max(...all) : score.hi, full: score.full || score };
 }
 
 // piece: {ts:[4,4], key:'C', tempo:90, rh:'...', lh:'...'}  (rh -> Violinschlüssel, lh -> Bassschlüssel)
@@ -89,19 +91,40 @@ export function buildScore(piece) {
   const ts = piece.ts || [4, 4];
   const voices = [];
   const clef = piece.clefs || {};
-  if (piece.rh) voices.push(parseVoice(piece.rh, clef.rh || 't'));
-  if (piece.lh) voices.push(parseVoice(piece.lh, clef.lh || 'b'));
+  // Gesang: eigene Stimme (Staff 'v' = Bassschlüssel, 'w' = Violinschlüssel, klingt eine Oktave tiefer),
+  // übrige Chorstimmen nur zum Hören, Klavierauszug wird angezeigt, aber nicht bewertet.
+  const vocal = !!(piece.parts || piece.voice);
+  let accParts = null;
+  if (vocal) {
+    const pc = piece.partClefs || {};
+    const sel = piece.parts ? (piece.sel && piece.parts[piece.sel] ? piece.sel : Object.keys(piece.parts)[0]) : null;
+    const ownStr = piece.parts ? piece.parts[sel] : piece.voice;
+    const ownSt = piece.parts ? (pc[sel] === 'w' ? 'w' : pc[sel] === 't' ? 'u' : 'v') : (piece.voiceClef || 'v');
+    const own = parseVoice(ownStr, ownSt);
+    if (ownSt === 'w') own.notes.forEach(n => (n.oct = -12));
+    voices.push(own);
+    accParts = [];
+    if (piece.parts) for (const [g, str] of Object.entries(piece.parts)) if (g !== sel) accParts.push({ group: g, kind: 'voice', notes: parseVoice(str, 't').notes, oct: pc[g] === 'w' ? -12 : 0 });
+    const pnotes = [];
+    for (const k of ['rh', 'lh']) if (piece[k]) { const v = parseVoice(piece[k], k === 'rh' ? 't' : 'b'); v.notes.forEach(n => (n.acc = true)); voices.push(v); pnotes.push(...v.notes); }
+    if (pnotes.length) accParts.push({ group: 'Klavier', kind: 'piano', notes: pnotes, oct: 0 });
+    piece = { ...piece, staves: piece.staves || [ownSt, ...(piece.rh ? ['t'] : []), ...(piece.lh ? ['b'] : [])], _sel: sel };
+  } else {
+    if (piece.rh) voices.push(parseVoice(piece.rh, clef.rh || 't'));
+    if (piece.lh) voices.push(parseVoice(piece.lh, clef.lh || 'b'));
+  }
   const notes = voices.flatMap(v => v.notes).sort((a, b) => a.beat - b.beat);
   const total = Math.max(...voices.map(v => v.length));
   const staves = [...new Set(voices.map(v => v.notes[0]?.staff).filter(Boolean))].sort((a, b) => (a === 't' ? -1 : 1));
   if (piece.staves) staves.splice(0, staves.length, ...piece.staves);
   const tr = piece.transpose || 0;
   const events = makeEvents(notes, tr);
-  const all = notes.flatMap(n => n.pitches.map(p => p.midi + tr));
+  const all = notes.filter(n => !n.acc).flatMap(n => n.pitches.map(p => p.midi + tr + (n.oct || 0)));
   return {
     ts, key: piece.key || 'C', tempo: piece.tempo || 80, staves, notes, events, total,
     measure: ts[0] * 4 / ts[1],
     lo: Math.min(...all), hi: Math.max(...all),
+    accParts, part: piece._sel || null, vocal,
     transpose: tr, tech: piece.tech || null, style: piece.style2 || null, chordStr: piece.chords || null, melStr: piece.mel || null,
   };
 }
@@ -111,9 +134,10 @@ export function validatePiece(piece) {
   const errs = [];
   const ts = piece.ts || [4, 4];
   const L = ts[0] * 4 / ts[1];
-  for (const k of ['rh', 'lh']) {
-    if (!piece[k]) continue;
-    const v = parseVoice(piece[k], 't');
+  const strs = { rh: piece.rh, lh: piece.lh, voice: piece.voice, ...Object.fromEntries(Object.entries(piece.parts || {}).map(([g, x]) => ['Stimme ' + g, x])) };
+  for (const [k, str] of Object.entries(strs)) {
+    if (!str) continue;
+    const v = parseVoice(str, 't');
     v.barChecks.forEach((b, i) => { if (Math.abs(b - (i + 1) * L) > 1e-6) errs.push(`${k} Takt ${i + 1}: endet bei ${b}, erwartet ${(i + 1) * L}`); });
     if (Math.abs(v.length / L - Math.round(v.length / L)) > 1e-6) errs.push(`${k}: Gesamtlänge ${v.length} kein ganzer Takt`);
   }

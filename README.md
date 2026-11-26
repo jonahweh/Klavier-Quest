@@ -28,6 +28,14 @@ Oben auf der Startseite zwischen **Klavier** und **Kontrabass** umschalten:
 - Optionale **Begleitung** (Klavier + Schlagzeug), auch über Bluetooth-Box mit „Mitspielen“
 - **Stimmgerät**, Notenlese-Sprint im Bassschlüssel, Gehörtraining auf dem Bass
 
+## Gesang-Modus
+Dritter Modus neben Klavier und Kontrabass – zum Proben von Chorstücken ohne Lehrkraft:
+- **Einsingen** (5 Minuten): Summen, Lippenflattern, Dreiklang, Tonleiter, Staccato – vorgespielt und nachgesungen, passend zur Stimmlage (Bass, Bariton, Tenor)
+- **4 Welten**: Stimme finden → Intervalle → Blattsingen → Chor
+- **Tonhöhen-Anzeige** statt Klaviatur: Zielton als Balken, die eigene Stimme als Linie, Cent-Abweichung
+- **Chorstücke**: eigene Stimme (Bass oder Tenor pro Stück wählbar) plus Klavierauszug; die anderen Stimmen im **Stimmen-Mixer** lauter, leiser oder stumm
+- **Probenmappe** für Musical und Schulchor
+
 ## Cloud-Sync einrichten
 1. Auf github.com → Settings → Developer settings → Personal access tokens → **Tokens (classic)** → neuen Token erstellen, nur Haken bei **gist**
 2. In der App: Einstellungen → Cloud-Sync → Token einfügen → Synchronisieren

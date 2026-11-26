@@ -4,6 +4,8 @@ import { Input, Listener, Synth, Accomp, getCtx, unlockAudio } from './audio.js'
 import { Fingerboard, parseChords, chordLabel, TOLERANCE } from './bass.js';
 import { midiName, midiLabel, parseVoice, sliceScore } from './score.js';
 import { S, save } from './store.js';
+import { PitchRoll } from './pitchroll.js';
+const PART_NAMES = { S: 'Sopran', A: 'Alt', T: 'Tenor', B: 'Bass', Klavier: 'Klavier' };
 
 const isBlack = m => [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
 
@@ -91,10 +93,14 @@ export class Player {
     this.hint = opt.hint ?? 0;
     this.running = false;
     this.bass = !!opt.bass;
-    this.tol = TOLERANCE[S.settings.inton || 'streng'] || 15;
+    this.voice = !!opt.voice;
+    this.mono = this.bass || this.voice;   // einstimmig, mit Cent-Messung
+    this.tol = this.voice ? (TOLERANCE[S.settings.intonVoice || 'mittel'] || 25) : (TOLERANCE[S.settings.inton || 'streng'] || 15);
+    this.parts = this.score.accParts && this.score.accParts.length ? this.score.accParts : null;
+    this.partsFull = this.parts;
     this.chords = this.score.chordStr ? parseChords(this.score.chordStr, this.score.measure).map(k => ({ ...k, label: chordLabel(k.chord.sym) })) : null;
     this.mel = this.score.melStr ? parseVoice(this.score.melStr, 't').notes : null;
-    if (this.mel && !this.chords) this.chords = [];
+    if ((this.mel || this.parts) && !this.chords) this.chords = [];
     this.chordsFull = this.chords; this.melFull = this.mel;
     this.accOn = S.settings.accomp !== false;
     this.build();
@@ -121,12 +127,14 @@ export class Player {
           </div>
           <div class="seg small">
             <button data-hint="2" class="${this.hint === 2 ? 'on' : ''}" title="Notennamen + Griff">Namen</button>
-            <button data-hint="1" class="${this.hint === 1 ? 'on' : ''}" title="Nur Griff zeigen">${this.bass ? 'Griff' : 'Tasten'}</button>
+            <button data-hint="1" class="${this.hint === 1 ? 'on' : ''}" title="Nur Griff zeigen">${this.bass ? 'Griff' : this.voice ? 'Ziel' : 'Tasten'}</button>
             <button data-hint="0" class="${this.hint === 0 ? 'on' : ''}" title="Keine Hilfen">Ohne</button>
           </div>
           <button class="btn ghost" data-a="range" title="Takte auswählen, Schleife üben">${ICON.loop} Takte</button>
           <button class="btn ghost" data-a="listen">${ICON.play} Anhören</button>
-          ${this.chords ? `<button class="btn ghost" data-a="along" title="Nur Begleitung, ohne Mikrofon – funktioniert auch mit Bluetooth-Box und AirPods">${ICON.play} Mitspielen</button>` : ''}
+          ${this.chords ? `<button class="btn ghost" data-a="along" title="Nur Begleitung, ohne Mikrofon – funktioniert auch mit Bluetooth-Box und AirPods">${ICON.play} ${this.voice ? 'Mitsingen' : 'Mitspielen'}</button>` : ''}
+          ${this.parts ? `<button class="btn ghost" data-a="mixer" title="Lautstärke der Stimmen">${ICON.jam} Stimmen</button>` : ''}
+          ${o.partSel ? `<div class="seg small part-sel">${o.partSel.options.map(k => `<button data-part="${k}" class="${k === o.partSel.cur ? 'on' : ''}">${PART_NAMES[k] || k}</button>`).join('')}</div>` : ''}
           ${this.chords ? `<button class="btn ghost tog ${this.accOn ? 'on' : ''}" data-a="acc" title="Klavier und Schlagzeug im Rhythmus-Modus">Begleitung ${this.accOn ? 'an' : 'aus'}</button>` : ''}
           ${o.boss ? '<span class="boss-tag">Boss · Rhythmus-Modus, ab 2 Sternen geschafft</span>' : ''}
         </div>
@@ -139,6 +147,11 @@ export class Player {
           <button class="btn ghost small" data-a="whole">Ganzes Stück</button>
           <span class="muted range-info">Schleife: Nach jedem Durchgang mit mindestens 90 % geht das Tempo um 5 % hoch.</span>
         </div>
+        ${this.parts ? `<div class="mix-panel" hidden>
+          ${this.parts.map(pt => `<label>${PART_NAMES[pt.group] || pt.group}<input type="range" min="0" max="1.2" step="0.05" data-mix="${pt.group}" value="${this.mixOf(pt)}"></label>`).join('')}
+          <label>Deine Stimme (nur Anhören)<input type="range" min="0" max="1.2" step="0.05" data-mix="own" value="${(S.settings.mix || {}).own ?? 1}"></label>
+          <span class="muted range-info">Tipp: Erst mit lauten Mitsängern üben, dann nach und nach leiser drehen. Im Rhythmus-Modus mit Kopfhörern, damit das Mikrofon nur dich hört.</span>
+        </div>` : ''}
         <div class="staff-wrap">
           <div class="staff-move"><svg class="staff"></svg></div>
           <div class="playhead"></div>
@@ -156,7 +169,8 @@ export class Player {
     this.svg = $('.staff');
     this.move = $('.staff-move');
     this.wrap = $('.staff-wrap');
-    this.kb = this.bass ? new Fingerboard($('.kb'), { tol: this.tol }) : new Keyboard($('.kb'), this.score.lo, this.score.hi);
+    this.kb = this.bass ? new Fingerboard($('.kb'), { tol: this.tol }) : this.voice ? new PitchRoll($('.kb'), { tol: this.tol, center: Math.round((this.score.lo + this.score.hi) / 2) }) : new Keyboard($('.kb'), this.score.lo, this.score.hi);
+    this.root.querySelector('.pl').addEventListener('input', e => this.onMix(e));
     this.layout();
     this.root.querySelector('.pl').addEventListener('click', e => this.onClick(e));
     this.unsub = Input.on(ev => this.onNote(ev));
@@ -172,11 +186,18 @@ export class Player {
   }
 
   bpm() { return Math.round(this.score.tempo * this.tempoF); }
+  mixOf(pt) { const m = S.settings.mix || {}; return m[pt.group] ?? (pt.kind === 'piano' ? 0.8 : 0.6); }
+  mixAll() { const m = {}; (this.parts || []).forEach(pt => (m[pt.group] = this.mixOf(pt))); return m; }
+  onMix(e) {
+    const g = e.target.dataset?.mix; if (!g) return;
+    (S.settings.mix ||= {})[g] = +e.target.value; save();
+    Accomp.setMix(g, +e.target.value);
+  }
 
   layout(keep) {
     const h = this.wrap.clientHeight || 300;
     const n = this.score.staves.length;
-    const space = Math.max(7, Math.min(n === 2 ? 17 : this.bass ? 19 : 24, (h - 8) / (n === 2 ? 27.5 : this.bass ? 20.8 : 17)));
+    const space = Math.max(7, Math.min(n === 3 ? 12 : n === 2 ? 17 : this.bass ? 19 : 24, (h - 8) / (n === 3 ? 38 : n === 2 ? 27.5 : this.bass ? 20.8 : 17)));
     this.L = renderScore(this.svg, this.score, { space, pxPerBeat: space * 6, names: this.hint >= 2, tall: this.bass, chords: this.chords });
     this.paint();
     if (keep) this.scrollTo(this.mode === 'wait' ? this.idx : null, true);
@@ -195,6 +216,7 @@ export class Player {
   async onClick(e) {
     const b = e.target.closest('button,[data-a]');
     if (!b) return;
+    if (b.dataset.part && this.o.partSel) { if (b.dataset.part === this.o.partSel.cur) return; this.destroy(); return this.o.partSel.onChange(b.dataset.part); }
     if (b.dataset.mode) {
       this.stopPreview();
       if (this.running) this.stop();
@@ -215,6 +237,7 @@ export class Player {
     if (b.dataset.up != null) { this.root.querySelectorAll('[data-up]').forEach(x => x.classList.toggle('on', x === b)); return; }
     const a = b.dataset.a;
     if (a === 'exit') { this.destroy(); this.o.onExit?.(); }
+    if (a === 'mixer') { const p = this.$('.mix-panel'); p.hidden = !p.hidden; this.layout(true); }
     if (a === 'range') { const p = this.$('.range-panel'); p.hidden = !p.hidden; this.layout(true); }
     if (a === 'apply' || a === 'whole') {
       let f = +this.$('[data-r=from]').value, t = +this.$('[data-r=to]').value;
@@ -254,8 +277,8 @@ export class Player {
     await this.ensureMic();
   }
   async ensureMic() {
-    Listener.mode = this.bass ? 'bass' : 'piano';
-    Listener.onPitch = this.bass ? p => this.kb.setPitch(p) : null;
+    Listener.mode = this.bass ? 'bass' : this.voice ? 'voice' : 'piano';
+    Listener.onPitch = this.mono ? p => this.kb.setPitch(p) : null;
     if (S.settings.input !== 'mic' || Listener.running) return true;
     try {
       await Listener.start();
@@ -278,6 +301,7 @@ export class Player {
     const cut = list => list ? list.filter(k => k.beat >= s - 1e-6 && k.beat < e - 1e-6).map(k => ({ ...k, beat: k.beat - s })) : null;
     this.chords = whole ? this.chordsFull : cut(this.chordsFull);
     this.mel = whole ? this.melFull : cut(this.melFull);
+    this.parts = this.score.accParts && this.score.accParts.length ? this.score.accParts : null;
     this.loopRuns = 0;
     this.layout();
     this.reset();
@@ -293,7 +317,7 @@ export class Player {
   }
   flushStats() {
     if (!this.statBuf) return;
-    const inst = this.bass ? 'bass' : 'piano';
+    const inst = this.bass ? 'bass' : this.voice ? 'voice' : 'piano';
     const all = ((S.noteStats ||= {})[inst] ||= {});
     for (const [k, v] of Object.entries(this.statBuf)) {
       const x = (all[k] ||= { n: 0, err: 0, c: 0, cn: 0 });
@@ -327,7 +351,7 @@ export class Player {
     this.scrollTo(this.mode === 'wait' ? 0 : null, true);
     if (this.mode === 'rhythm') this.placeRhythm(-this.score.measure);
     this.updateHint();
-    this.feedback(this.mode === 'wait' ? 'Warte-Modus: Spiel die markierte Note – die App wartet auf dich.' : 'Rhythmus-Modus: Nach einem Takt Vorzähler läuft die Musik im Tempo.');
+    this.feedback(this.mode === 'wait' ? (this.voice ? 'Warte-Modus: Sing die markierte Note – die App wartet auf dich. „Ton“ spielt sie vor.' : 'Warte-Modus: Spiel die markierte Note – die App wartet auf dich.') : 'Rhythmus-Modus: Nach einem Takt Vorzähler läuft die Musik im Tempo.');
   }
 
   paint() {
@@ -361,7 +385,7 @@ export class Player {
     const e = this.ev?.[this.idx];
     if (this.mode === 'wait' && e && (this.hint >= 1 || force)) this.kb.hint(e.midis, this.hint >= 2 || force, e);
     else this.kb.hint([]);
-    if (this.bass && e) { this.kb.target = e.midis[0]; this.kb.grip = e.grip; }
+    if (this.mono && e) { this.kb.target = e.midis[0]; this.kb.grip = e.grip; }
   }
 
   feedback(t, cls = '', ms = 0) {
@@ -413,7 +437,7 @@ export class Player {
 
   resetPreviewBtns() {
     const a = this.$('[data-a=listen]'); if (a) a.innerHTML = `${ICON.play} Anhören`;
-    const b = this.$('[data-a=along]'); if (b) b.innerHTML = `${ICON.play} Mitspielen`;
+    const b = this.$("[data-a=along]"); if (b) b.innerHTML = `${ICON.play} ${this.voice ? "Mitsingen" : "Mitspielen"}`;
   }
 
   async start() {
@@ -430,12 +454,18 @@ export class Player {
       this.evStart = performance.now() / 1000;
       Listener.setExpected(this.ev[0].midis);
       this.paint();
-      this.feedback('Los geht’s – spiel die blaue Note.');
+      this.feedback(this.voice ? 'Los geht’s – hör den Startton und sing die blaue Note.' : 'Los geht’s – spiel die blaue Note.');
+      this._toneGiven = false;
+      if (this.voice) setTimeout(() => this.running && this.kb.playTarget(), 300);
       this.stuckTimer = setInterval(() => {
         if (!this.running) return;
+        if (this.voice && !this._toneGiven && performance.now() / 1000 - this.evStart > 6) {
+          this._toneGiven = true; this.updateHint(true); this.kb.playTarget();
+          this.feedback('Hier ist der Ton zum Nachsingen.', 'tip');
+        }
         if (performance.now() / 1000 - this.evStart > 7 && this.hint < 1) {
           this.updateHint(true);
-          this.feedback('Tipp: Die gesuchte Taste leuchtet unten.', 'tip');
+          this.feedback(this.voice ? 'Tipp: Der Zielton ist unten markiert. Mit „Ton“ hörst du ihn.' : 'Tipp: Die gesuchte Taste leuchtet unten.', 'tip');
         }
       }, 1000);
     } else {
@@ -463,11 +493,11 @@ export class Player {
     if (this.mode === 'rhythm') return this.onNoteRhythm(midi, t, source, cents);
     const e = this.ev[this.idx];
     if (!e) return;
-    if (this.bass && source === 'mic') {
+    if (this.mono && source === 'mic') {
       const mt = this.bassMatch(midi, cents, [...e.midis, ...(this.ev[this.idx - 1]?.midis || [])]);
       if (mt) { midi = mt.midi; cents = mt.cents; }
     }
-    if (e.midis.includes(midi) && this.bass && source === 'mic' && cents != null) {
+    if (e.midis.includes(midi) && this.mono && source === 'mic' && cents != null) {
       const c = Math.round(cents), ac = Math.abs(c);
       e.inton = c;
       e.intonPts = this.intonPts(ac);
@@ -486,7 +516,7 @@ export class Player {
     this.lastWrong = t;
     this.kb.flash(midi, 'bad');
     // Kontrabass: Fehlerkennungen (Nachklang, Resonanz) nicht bestrafen
-    if (this.bass && source === 'mic') { this.feedback(`Gehört: ${midiName(midi)}`, 'tip', 1200); return; }
+    if (this.mono && source === 'mic') { this.feedback(`Gehört: ${midiName(midi)}`, 'tip', 1200); return; }
     e.tries++;
     this.combo = 0;
     const g = this.L.evEls[this.idx];
@@ -516,6 +546,7 @@ export class Player {
     e.pts = (e.tries === 0 ? 1 : e.tries === 1 ? 0.5 : 0.25) * ip;
     if (e.tries === 0) { this.combo++; this.best = Math.max(this.best, this.combo); }
     this.lastAdvance = performance.now() / 1000;
+    this._toneGiven = false;
     this.idx++;
     this.evStart = this.lastAdvance;
     if (e.tries === 0 && this.combo > 0 && this.combo % 10 === 0) this.feedback(`${this.combo}er-Combo!`, 'good', 1500);
@@ -544,8 +575,9 @@ export class Player {
       for (let b = 0; b < total; b++) Synth.click(ctxStart + (countBeats + b) * spb, b % this.score.measure === 0);
     }
     if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1, this.mel);
+    if (this.parts && this.accOn) Accomp.scheduleParts(this.parts, spb, ctxStart + countBeats * spb, this.mixAll());
     this.missIdx = 0;
-    this.win = this.bass ? Math.max(0.32, Math.min(0.5, spb * 0.6)) : Math.max(0.22, Math.min(0.32, spb * 0.4));
+    this.win = this.mono ? Math.max(0.32, Math.min(0.5, spb * 0.6)) : Math.max(0.22, Math.min(0.32, spb * 0.4));
     this.paint();
     const ci = this.$('.countin');
     const loop = () => {
@@ -568,7 +600,7 @@ export class Player {
       }
       Listener.setExpected([...new Set(exp)]);
       // Kontrabass: Tonwiederholung ohne hörbaren neuen Anschlag trotzdem werten
-      if (this.bass && S.settings.input === 'mic') {
+      if (this.mono && S.settings.input === 'mic') {
         for (let i = this.missIdx; i < this.ev.length; i++) {
           const e = this.ev[i], te = e.beat * spb;
           if (te > songT) break;
@@ -598,9 +630,9 @@ export class Player {
     this.raf = requestAnimationFrame(loop);
   }
   onNoteRhythm(midi, t, source, cents) {
-    const lat = source === 'mic' ? (this.bass ? (S.settings.latencyBass ?? (S.settings.latency || 0) * 0.4) : (S.settings.latency || 0)) / 1000 : source === 'touch' ? 0.02 : 0;
+    const lat = source === 'mic' ? (this.mono ? (S.settings.latencyBass ?? (S.settings.latency || 0) * 0.4) : (S.settings.latency || 0)) / 1000 : source === 'touch' ? 0.02 : 0;
     const songT = t - this.tStart - lat;
-    if (this.bass && source === 'mic') {
+    if (this.mono && source === 'mic') {
       const near = this.ev.filter(e => Math.abs(e.beat * this.spb - songT) <= this.win + 0.1).flatMap(e => e.midis);
       const mt = this.bassMatch(midi, cents, near);
       if (mt) { midi = mt.midi; cents = mt.cents; }
@@ -618,7 +650,7 @@ export class Player {
       // Nachklang des gerade getroffenen Tons ignorieren
       const recent = this.ev.find(e => e.status !== 'pending' && e.status !== 'miss' && e.midis.includes(midi) && Math.abs(e.beat * this.spb - songT) < 0.5);
       if (recent) return;
-      if (this.bass && source === 'mic') { this.kb.flash(midi, 'bad'); return; }
+      if (this.mono && source === 'mic') { this.kb.flash(midi, 'bad'); return; }
       this.wrong++;
       this.combo = 0;
       this.kb.flash(midi, 'bad');
@@ -627,19 +659,19 @@ export class Player {
       return;
     }
     best.hits[midi] = songT;
-    if (this.bass && source === 'mic' && cents != null) best.inton = Math.round(cents);
+    if (this.mono && source === 'mic' && cents != null) best.inton = Math.round(cents);
     this.kb.flash(midi, 'ok');
     if (this.satisfied(best, best.hits)) {
       const te = best.beat * this.spb;
       const dts = Object.values(best.hits).map(h => Math.abs(h - te));
       const dt = Math.max(...dts);
       let grade, pts;
-      const [tp, tg] = this.bass ? [0.13, 0.25] : [0.08, 0.16];
+      const [tp, tg] = this.mono ? [0.13, 0.25] : [0.08, 0.16];
       if (dt <= tp) { grade = 'Perfekt'; pts = 1; best.status = 'ok'; }
-      else if (dt <= tg) { grade = 'Gut'; pts = this.bass ? 0.92 : 0.8; best.status = 'ok'; }
-      else { grade = 'OK'; pts = this.bass ? 0.78 : 0.5; best.status = 'meh'; }
+      else if (dt <= tg) { grade = 'Gut'; pts = this.mono ? 0.92 : 0.8; best.status = 'ok'; }
+      else { grade = 'OK'; pts = this.mono ? 0.78 : 0.5; best.status = 'meh'; }
       let itxt = '';
-      if (this.bass && best.inton != null) {
+      if (this.mono && best.inton != null) {
         const ac = Math.abs(best.inton);
         pts *= this.intonPts(ac);
         if (ac > Math.max(30, this.tol * 2)) itxt = ` · etwas ${best.inton > 0 ? 'hoch' : 'tief'}`;
@@ -673,12 +705,14 @@ export class Player {
       for (let i = 0; i < cb; i++) Synth.click(t0 + i * spb, i === 0);
     }
     const tM = withMelody ? t0 : t0 + this.score.measure * spb;
-    if (withMelody) for (const n of this.score.notes) if (!n.rest && !n.tiedFrom) for (const p of n.pitches) {
+    if (withMelody) for (const n of this.score.notes) if (!n.rest && !n.tiedFrom && !n.acc) for (const p of n.pitches) {
       const d = n.playDur || n.dur;
-      if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, d * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
+      if (this.voice) Synth.voice(p.midi + (n.oct || 0), t0 + n.beat * spb, d * spb * 0.92, (S.settings.mix || {}).own ?? 1);
+      else if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, d * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
       else Synth.note(p.midi, t0 + n.beat * spb, d * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
     }
     if (this.chords && (this.accOn || !withMelody)) Accomp.schedule(this.chords, spb, tM, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1, this.mel);
+    if (this.parts) Accomp.scheduleParts(this.parts, spb, tM, this.mixAll());
     Listener.muted = true;
     this.$('.playhead').style.display = 'block';
     const p0 = performance.now() / 1000 + 0.3 + (tM - t0);
@@ -716,14 +750,14 @@ export class Player {
       this.loopT = setTimeout(() => { if (!this.running && this.loop) this.start(); }, 1500);
       return;
     }
-    const [s3, s2, s1] = this.bass ? [0.88, 0.7, 0.5] : [0.95, 0.8, 0.6];
+    const [s3, s2, s1] = this.mono ? [0.88, 0.7, 0.5] : [0.95, 0.8, 0.6];
     const st = acc >= s3 ? 3 : acc >= s2 ? 2 : acc >= s1 ? 1 : 0;
     const res = {
       accuracy: acc, stars: st, mode: this.mode, tempoF: this.tempoF, best: this.best,
       wrong: this.wrong + this.ev.reduce((a, e) => a + e.tries, 0),
       perfect: this.mode === 'rhythm' && this.ev.every(e => e.pts === 1) && this.wrong === 0,
       seconds: (performance.now() - this.t0wall) / 1000,
-      inton: this.bass ? (() => { const v = this.ev.filter(e => e.inton != null).map(e => Math.abs(e.inton)); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })() : null,
+      inton: this.mono ? (() => { const v = this.ev.filter(e => e.inton != null).map(e => Math.abs(e.inton)); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; })() : null,
     };
     this.o.onFinish?.(res, this);
   }

@@ -13,7 +13,7 @@ const range = (a, b) => { const out = []; let p = parsePitch(a); const end = par
 export function sprintScreen(root, back) {
   const bass = S.instrument === 'bass';
   const LS = bass ? 'kq-sprint-bass' : 'kq-sprint';
-  const cfg = Object.assign({ clef: bass ? 'b' : 't', area: 'in', answer: 'names', acc: false }, JSON.parse(localStorage.getItem(LS) || '{}'));
+  const cfg = Object.assign({ clef: bass || S.instrument === 'voice' ? 'b' : 't', area: 'in', answer: 'names', acc: false }, JSON.parse(localStorage.getItem(LS) || '{}'));
   if (bass) { cfg.clef = 'b'; if (cfg.answer === 'keys') cfg.answer = 'names'; }
   const opt = (k, v, label) => `<button class="${cfg[k] === v ? 'on' : ''}" data-k="${k}" data-v="${v}">${label}</button>`;
   const setup = () => {
@@ -164,7 +164,7 @@ export function earScreen(root, back) {
     ['hoeher', 'Höher oder tiefer?', 'Zwei Töne – ist der zweite höher, tiefer oder gleich?'],
     ['intervall', 'Intervalle', 'Wie weit liegen zwei Töne auseinander?'],
     ['durmoll', 'Dur oder Moll?', 'Klingt der Akkord hell oder dunkel?'],
-    ['nachspielen', 'Nachspielen', 'Hör eine kurze Melodie und spiel sie auf deinem Klavier nach.'],
+    S.instrument === 'voice' ? ['nachspielen', 'Nachsingen', 'Hör eine kurze Melodie und sing sie nach.'] : ['nachspielen', 'Nachspielen', 'Hör eine kurze Melodie und spiel sie auf deinem Instrument nach.'],
   ];
   const setup = () => {
     root.innerHTML = `
@@ -183,10 +183,10 @@ export function earScreen(root, back) {
       if (b.dataset.a === 'go') round();
     };
   };
-  const bass = S.instrument === 'bass';
+  const bass = S.instrument === 'bass', voice = S.instrument === 'voice';
   async function round() {
     await unlockAudio();
-    Listener.mode = bass ? 'bass' : 'piano';
+    Listener.mode = bass ? 'bass' : voice ? 'voice' : 'piano';
     if (st.mode === 'nachspielen' && S.settings.input === 'mic') { try { await Listener.start(); Listener.sens = S.settings.sens; } catch (e) { /* Touch */ } }
     let q = 0, right = 0, cur = null, answered = false, unsub = null, muteT = 0, nextT = 0;
     root.innerHTML = `
@@ -202,7 +202,7 @@ export function earScreen(root, back) {
       </div>`;
     const $ = s => root.querySelector(s);
     let kb = null;
-    if (st.mode === 'nachspielen') kb = bass ? new Fingerboard($('.kb'), { tol: 25 }) : new Keyboard($('.kb'), 60, 71);
+    if (st.mode === 'nachspielen') kb = bass ? new Fingerboard($('.kb'), { tol: 25 }) : voice ? new Keyboard($('.kb'), 48, 59) : new Keyboard($('.kb'), 60, 71);
     else $('.kb').remove();
     Listener.onPitch = bass && kb ? p => kb.setPitch(p) : null;
     const play = () => {
@@ -236,11 +236,11 @@ export function earScreen(root, back) {
         cur = { type: 'chord', notes: [base, base + (dur ? 4 : 3), base + 7], ans: dur ? 'dur' : 'moll' };
         html = '<button class="ans" data-ans="dur">Dur</button><button class="ans" data-ans="moll">Moll</button>';
       } else {
-        const pool = bass ? [38, 40, 42, 43, 45] : [60, 62, 64, 65, 67];
+        const pool = bass ? [38, 40, 42, 43, 45] : voice ? [48, 50, 52, 53, 55] : [60, 62, 64, 65, 67];
         const notes = [rand(pool)];
         while (notes.length < 3) { const n = rand(pool); if (n !== notes.at(-1)) notes.push(n); }
         cur = { type: 'seq', notes, pos: 0, errs: 0 };
-        html = '<p class="muted center">' + (bass ? 'Töne aus der I. Lage (D-Saite bis A auf der G-Saite)' : 'Töne aus der C-Lage (C bis G)') + '. Der erste Ton ist ' + midiName(notes[0]) + '.</p>';
+        html = '<p class="muted center">' + (bass ? 'Töne aus der I. Lage (D-Saite bis A auf der G-Saite)' : voice ? 'Sing die Töne nach (C3 bis G3, Oktave egal)' : 'Töne aus der C-Lage (C bis G)') + '. Der erste Ton ist ' + midiName(notes[0]) + '.</p>';
         Listener.setExpected([notes[0]]);
       }
       $('.answers').innerHTML = html;
@@ -265,13 +265,14 @@ export function earScreen(root, back) {
     unsub = Input.on(({ midi }) => {
       if (st.mode !== 'nachspielen' || answered || !cur) return;
       const want = cur.notes[cur.pos];
-      if (midi === want) {
+      if (midi === want || (voice && (midi - want) % 12 === 0)) {
         kb?.flash(midi, 'ok');
         cur.pos++;
         if (cur.pos >= cur.notes.length) resolve(cur.errs === 0);
         else Listener.setExpected([cur.notes[cur.pos]]);
       } else {
         kb?.flash(midi, 'bad');
+        if (voice) return;   // Gleiten zwischen Tönen nicht bestrafen
         cur.errs++;
         if (cur.errs >= 3) resolve(false);
       }

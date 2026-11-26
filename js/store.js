@@ -1,5 +1,5 @@
 // Fortschritt, XP, Streak, Erfolge, Sync-Code
-import { WORLDS, BASS_WORLDS, worldsFor, allSteps, LEVEL_TITLES } from './curriculum.js';
+import { WORLDS, BASS_WORLDS, VOICE_WORLDS, worldsFor, allSteps, LEVEL_TITLES } from './curriculum.js';
 
 const KEY = 'klavier-quest-v1';
 const today = () => new Date().toLocaleDateString('sv-SE');           // YYYY-MM-DD lokal
@@ -17,7 +17,7 @@ const DEFAULT = () => ({
   ach: {},
   settings: {
     input: 'mic', sens: 0.55, latency: 90, chord: 'normal', hints: 'auto',
-    metronome: true, goal: 60, touchSound: true, inton: 'streng', accomp: true, accVol: 1.2, micId: null,
+    metronome: true, goal: 60, touchSound: true, inton: 'streng', intonVoice: 'mittel', voiceType: 'bariton', mix: {}, accomp: true, accVol: 1.2, micId: null,
   },
   updated: Date.now(),
 });
@@ -135,6 +135,8 @@ export const ACHIEVEMENTS = [
   { id: 'stars80', t: 'Milchstraße', d: '80 Sterne gesammelt', ok: () => totalStars() >= 80 },
   ...WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Comeback geschafft', 'Beidhändig', 'Tonarten-Meister', 'Akkord-Ass', 'In Bewegung', 'Ausdrucksstark', 'Pop-Profi', 'Ultra-God'][i], d: `Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
   ...BASS_WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Erster Strich', 'Fundament', 'Taktgeber', 'Walker', 'Lagen-Profi', 'Bass-Held', 'Repertoire-Meister', 'Daumen-Profi', 'Probespiel-Sieger'][i], d: `Kontrabass: Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
+  ...VOICE_WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Stimme gefunden', 'Treffsicher', 'Blattsänger', 'Chorstimme'][i], d: `Gesang: Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
+  { id: 'warm10', t: 'Gut eingesungen', d: '10-mal eingesungen', ok: () => (S.stats.warmups || 0) >= 10 },
   { id: 'streak3', t: 'Dranbleiber', d: '3 Tage Serie', ok: () => S.streak.best >= 3 },
   { id: 'streak7', t: 'Wochenheld', d: '7 Tage Serie', ok: () => S.streak.best >= 7 },
   { id: 'streak30', t: 'Unaufhaltsam', d: '30 Tage Serie', ok: () => S.streak.best >= 30 },
