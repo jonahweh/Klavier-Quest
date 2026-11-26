@@ -445,6 +445,9 @@ function settings() {
       <div class="mt-meter"><i></i></div>
       <div class="mt-note">–</div>
       <button class="btn ghost" data-a="mictest">${ICON.mic} Test starten</button>
+      <label>Mikrofon</label>
+      <select class="mic-sel" data-sel="micId"><option value="">Standard (vom System gewählt)</option></select>
+      <p class="hint-line">Mit AirPods nimmt das System sonst deren Mikrofon. Wähle hier das eingebaute Mikrofon (z. B. „iPad-Mikrofon“). Die Liste füllt sich, sobald der Test einmal lief.</p>
       <p class="hint-line">Spiel einzelne Töne. Steht unten zuverlässig der richtige Name, passt alles. Leg das iPad nah ans Klavier, Lautsprecher-Seite Richtung Tasten.</p>
       <label>Empfindlichkeit <b class="sens-v">${Math.round(st.sens * 100)} %</b></label>
       <input type="range" min="0.1" max="1" step="0.05" value="${st.sens}" data-r="sens">
@@ -465,6 +468,8 @@ function settings() {
       <label>Begleitung (Kontrabass, Rhythmus-Modus)</label>
       ${seg('accomp', [[true, 'An'], [false, 'Aus']])}
       <p class="hint-line">Klavier und Schlagzeug spielen mit. Am besten mit Kopfhörern, damit das Mikrofon nur deinen Bass hört.</p>
+      <label>Lautstärke Begleitung <b class="acc-v">${Math.round((st.accVol ?? 1.2) * 100)} %</b></label>
+      <input type="range" min="0.3" max="2.5" step="0.1" value="${st.accVol ?? 1.2}" data-r="accVol">
       <label>Metronom im Rhythmus-Modus</label>
       ${seg('metronome', [[true, 'An'], [false, 'Aus']])}
       <label>Ton bei Bildschirm-Tasten</label>
@@ -500,7 +505,22 @@ function settings() {
     st[r] = +e.target.value;
     if (r === 'sens') { Listener.sens = st.sens; $('.sens-v').textContent = Math.round(st.sens * 100) + ' %'; }
     if (r === 'latency') $('.lat-v').textContent = st.latency + ' ms';
+    if (r === 'accVol') $('.acc-v').textContent = Math.round(st.accVol * 100) + ' %';
     save();
+  };
+  // Mikrofon-Auswahl
+  const fillMics = async () => {
+    const sel = $('.mic-sel'); if (!sel) return;
+    const mics = await Listener.listMics();
+    sel.innerHTML = '<option value="">Standard (vom System gewählt)</option>' + mics.filter(m => m.id && m.id !== 'default').map(m => `<option value="${esc(m.id)}" ${m.id === st.micId ? 'selected' : ''}>${esc(m.label)}</option>`).join('');
+  };
+  fillMics();
+  app.onchange = e => {
+    if (e.target.dataset.sel !== 'micId') return;
+    st.micId = e.target.value || null;
+    Listener.micId = st.micId;
+    save();
+    if (Listener.running) { Listener.stop(); Listener.start().catch(() => {}); }
   };
   app.onclick = async e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -512,7 +532,7 @@ function settings() {
     const a = b.dataset.a;
     if (a === 'back') { Listener.onLevel = null; if (testing) { Listener.setExpected([]); } return home(); }
     if (a === 'mictest') {
-      try { Listener.mode = isBass() ? 'bass' : 'piano'; await Listener.start(); Listener.sens = st.sens; testing = true; Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
+      try { Listener.mode = isBass() ? 'bass' : 'piano'; await Listener.start(); Listener.sens = st.sens; testing = true; fillMics(); Listener.setExpected([]); b.textContent = 'Test läuft – spiel einen Ton'; }
       catch (err) { $('.mt-note').textContent = 'Kein Zugriff aufs Mikrofon'; }
     }
     if (a === 'midi') {
@@ -552,6 +572,7 @@ function destroyPlayer() {
 const LOGO = '<svg viewBox="0 0 40 40" class="logo-mark"><rect x="2" y="6" width="36" height="28" rx="7" fill="var(--ink)"/><rect x="7" y="11" width="6" height="18" rx="1.5" fill="#fff"/><rect x="17" y="11" width="6" height="18" rx="1.5" fill="#fff"/><rect x="27" y="11" width="6" height="18" rx="1.5" fill="var(--accent)"/><rect x="11.5" y="11" width="3.5" height="10" rx="1" fill="var(--ink)"/><rect x="21.5" y="11" width="3.5" height="10" rx="1" fill="var(--ink)"/></svg>';
 
 // Start
+Listener.micId = S.settings.micId || null;
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) return;
   if (current) { current.stopPreview(); if (current.running) { current.stop(); current.reset(); } }

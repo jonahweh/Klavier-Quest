@@ -118,6 +118,7 @@ export class Player {
             <button data-hint="0" class="${this.hint === 0 ? 'on' : ''}" title="Keine Hilfen">Ohne</button>
           </div>
           <button class="btn ghost" data-a="listen">${ICON.play} Anhören</button>
+          ${this.chords ? `<button class="btn ghost" data-a="along" title="Nur Begleitung, ohne Mikrofon – funktioniert auch mit Bluetooth-Box und AirPods">${ICON.play} Mitspielen</button>` : ''}
           ${this.chords ? `<button class="btn ghost tog ${this.accOn ? 'on' : ''}" data-a="acc" title="Klavier und Schlagzeug im Rhythmus-Modus">Begleitung ${this.accOn ? 'an' : 'aus'}</button>` : ''}
           ${o.boss ? '<span class="boss-tag">Boss · Rhythmus-Modus, ab 2 Sternen geschafft</span>' : ''}
         </div>
@@ -200,7 +201,8 @@ export class Player {
       this.tempoF = Math.round(this.tempoF * 10) / 10;
       this.root.querySelector('.tv').textContent = this.bpm();
     }
-    if (a === 'listen') this.preview();
+    if (a === 'listen') this.preview(true);
+    if (a === 'along') this.preview(false);
     if (a === 'acc') {
       this.accOn = !this.accOn;
       S.settings.accomp = this.accOn; save();
@@ -328,7 +330,12 @@ export class Player {
     Synth.stopAll();
     Accomp.stop();
     Listener.muted = false;
-    const b = this.$('[data-a=listen]'); if (b) b.innerHTML = `${ICON.play} Anhören`;
+    this.resetPreviewBtns();
+  }
+
+  resetPreviewBtns() {
+    const a = this.$('[data-a=listen]'); if (a) a.innerHTML = `${ICON.play} Anhören`;
+    const b = this.$('[data-a=along]'); if (b) b.innerHTML = `${ICON.play} Mitspielen`;
   }
 
   async start() {
@@ -455,7 +462,7 @@ export class Player {
       const total = Math.ceil(this.score.total);
       for (let b = 0; b < total; b++) Synth.click(ctxStart + (countBeats + b) * spb, b % this.score.measure === 0);
     }
-    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.input === 'mic' ? 0.4 : 0.6);
+    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1);
     this.missIdx = 0;
     this.win = this.bass ? Math.max(0.32, Math.min(0.5, spb * 0.6)) : Math.max(0.22, Math.min(0.32, spb * 0.4));
     this.paint();
@@ -566,35 +573,43 @@ export class Player {
   }
 
   // ----- Vorhören -----
-  async preview() {
-    if (this.previewing) { this.stopPreview(); this.reset(); return; }
+  // withMelody=false: nur Begleitung zum Mitspielen (ohne Mikrofon -> läuft auch über Bluetooth-Box/AirPods)
+  async preview(withMelody = true) {
+    if (this.previewing) { const same = this.previewBtn === (withMelody ? 'listen' : 'along'); this.stopPreview(); this.reset(); if (same) return; }
     await unlockAudio();
     if (this.running) this.stop();
+    if (Listener.running) { Listener.stop(); this.setMicState(); }
     Synth.stopAll();
     this.reset();
+    this.previewBtn = withMelody ? 'listen' : 'along';
     const spb = 60 / this.bpm();
     const c = getCtx();
     const t0 = c.currentTime + 0.3;
     const tr = this.score.transpose || 0;
-    for (const n of this.score.notes) if (!n.rest) for (const p of n.pitches) {
+    if (!withMelody) {
+      const cb = this.score.measure;
+      for (let i = 0; i < cb; i++) Synth.click(t0 + i * spb, i === 0);
+    }
+    const tM = withMelody ? t0 : t0 + this.score.measure * spb;
+    if (withMelody) for (const n of this.score.notes) if (!n.rest) for (const p of n.pitches) {
       if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, n.dur * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
       else Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
     }
-    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, t0, this.score.style || 'straight', this.score.measure, 0.5);
+    if (this.chords && (this.accOn || !withMelody)) Accomp.schedule(this.chords, spb, tM, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1);
     Listener.muted = true;
     this.$('.playhead').style.display = 'block';
-    const p0 = performance.now() / 1000 + 0.3;
+    const p0 = performance.now() / 1000 + 0.3 + (tM - t0);
     this.previewing = true;
-    this.$('[data-a=listen]').innerHTML = `${ICON.stop} Stopp`;
+    this.$(`[data-a=${this.previewBtn}]`).innerHTML = `${ICON.stop} Stopp`;
     const loop = () => {
       const s = performance.now() / 1000 - p0;
-      this.placeRhythm(Math.max(0, s / spb));
+      this.placeRhythm(s / spb);
       if (s < this.score.total * spb + 0.5 && this.previewing) this.praf = requestAnimationFrame(loop);
       else {
         this.previewing = false;
         Accomp.stop();
         Listener.muted = false;
-        this.$('[data-a=listen]').innerHTML = `${ICON.play} Anhören`;
+        this.resetPreviewBtns();
         this.reset();
       }
     };

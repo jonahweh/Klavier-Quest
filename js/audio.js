@@ -14,6 +14,11 @@ export async function unlockAudio() {
   return c;
 }
 
+// iOS/iPadOS 16.4+: steuert, wie Safari Audio ausgibt (Wiedergabe vs. Aufnahme)
+export function setAudioSession(type) {
+  try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) { /* nicht unterstützt */ }
+}
+
 // ---------------- Eingabe-Hub ----------------
 // Alle Quellen melden "Taste angeschlagen" hier. Später einfach weitere Quellen anschließen.
 export const Input = {
@@ -29,9 +34,9 @@ export const Synth = {
     if (this.out) return;
     const c = getCtx();
     this.out = c.createGain();
-    this.out.gain.value = 0.9;
+    this.out.gain.value = 1.1;
     const comp = c.createDynamicsCompressor();
-    comp.threshold.value = -18; comp.ratio.value = 4;
+    comp.threshold.value = -12; comp.ratio.value = 3; comp.knee.value = 10;
     this.out.connect(comp); comp.connect(c.destination);
     this.listeners = new Set();
   },
@@ -171,12 +176,19 @@ export const Listener = {
   noise: -70,
   pitch: null,          // {midi, clarity}
   onLevel: null,
+  micId: null,          // gewähltes Mikrofon (deviceId) oder null = Standard
   async start() {
     if (this.running) return true;
     const c = await unlockAudio();
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-    });
+    const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+    setAudioSession('auto');
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: this.micId ? { ...base, deviceId: { exact: this.micId } } : base });
+    } catch (e) {
+      if (!this.micId) throw e;
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: base });   // gewähltes Mikro nicht verfügbar
+    }
+    setAudioSession('play-and-record');
     this.src = c.createMediaStreamSource(this.stream);
     this.an = c.createAnalyser();
     this.an.fftSize = 8192;
@@ -201,6 +213,15 @@ export const Listener = {
     clearInterval(this.timer);
     this.stream.getTracks().forEach(t => t.stop());
     this.running = false;
+    // Audio-Sitzung zurücksetzen, damit Box/AirPods wieder in voller Qualität spielen
+    setAudioSession('playback');
+    setAudioSession('auto');
+  },
+  async listMics() {
+    try {
+      const d = await navigator.mediaDevices.enumerateDevices();
+      return d.filter(x => x.kind === 'audioinput').map(x => ({ id: x.deviceId, label: x.label || 'Mikrofon' }));
+    } catch (e) { return []; }
   },
   setExpected(midis) { this.expected = midis || []; },
   mode: 'piano',
@@ -422,7 +443,7 @@ export const Accomp = {
     this.run = g;
     const voice = ch => {
       const tones = ch.iv.map(i => ch.root + i);
-      return tones.map(pc => { let m = 55 + ((pc - 55) % 12 + 12) % 12; return m; }).sort((a, b) => a - b);
+      return tones.map(pc => 60 + ((pc - 60) % 12 + 12) % 12).sort((a, b) => a - b);   // über dem Bass, damit das Mikro ihn nicht verwechselt
     };
     const T = b => t0 + b * spb;
     for (const k of chords) {
@@ -431,14 +452,14 @@ export const Accomp = {
       if (style === 'swing') {
         for (let b = Math.ceil(k.beat); b < end - 1e-6; b++) {
           const inBar = ((b % measure) + measure) % measure;
-          if (inBar === 1 || inBar === 3) Synth.chord(v, T(b), spb * 0.35, 0.45, g);
+          if (inBar === 1 || inBar === 3) Synth.chord(v, T(b), spb * 0.4, 0.85, g);
         }
       } else if (style === 'straight') {
-        for (let b = Math.ceil(k.beat); b < end - 1e-6; b += 2) Synth.chord(v, T(b), spb * 1.6, 0.42, g);
+        for (let b = Math.ceil(k.beat); b < end - 1e-6; b += 2) Synth.chord(v, T(b), spb * 1.6, 0.8, g);
       } else if (style === 'waltz') {
-        for (let b = Math.ceil(k.beat); b < end - 1e-6; b++) if (((b % measure) + measure) % measure) Synth.chord(v, T(b), spb * 0.5, 0.42, g);
+        for (let b = Math.ceil(k.beat); b < end - 1e-6; b++) if (((b % measure) + measure) % measure) Synth.chord(v, T(b), spb * 0.5, 0.8, g);
       } else {
-        v.forEach((m, i) => Synth.note(m, T(k.beat) + i * 0.04, k.dur * spb * 0.95, 0.38, g));
+        v.forEach((m, i) => Synth.note(m, T(k.beat) + i * 0.04, k.dur * spb * 0.95, 0.75, g));
       }
     }
     // Schlagzeug

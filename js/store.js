@@ -17,7 +17,7 @@ const DEFAULT = () => ({
   ach: {},
   settings: {
     input: 'mic', sens: 0.55, latency: 90, chord: 'normal', hints: 'auto',
-    metronome: true, goal: 60, touchSound: true, inton: 'streng', accomp: true,
+    metronome: true, goal: 60, touchSound: true, inton: 'streng', accomp: true, accVol: 1.2, micId: null,
   },
   updated: Date.now(),
 });

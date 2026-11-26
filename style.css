@@ -271,6 +271,7 @@ p { margin: 0 0 .7em; }
 .mt-meter i { display: block; height: 100%; width: 0; background: var(--ok); }
 .mt-note { font-size: 42px; font-weight: 800; line-height: 1; }
 input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
+select.mic-sel { width: 100%; min-height: 44px; font: 600 16px Manrope, sans-serif; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
 textarea.code { width: 100%; font: 13px ui-monospace, Menlo, monospace; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: #fff; resize: vertical; }
 
 /* ---------- Sprint & Gehör ---------- */
