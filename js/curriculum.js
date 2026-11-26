@@ -1,5 +1,6 @@
 // Lehrplan: Welten → Lektionen → Schritte. Theorie-Karten mit Beispielen zum Anhören.
 import { BASS_WORLDS, BASS_THEORY } from './bass-curriculum.js';
+import { REP_FAVORITES } from './bass-repertoire.js';
 
 const C_POS_T = ['C4', 'D4', 'E4', 'F4', 'G4'];
 const C_POS_B = ['C3', 'D3', 'E3', 'F3', 'G3'];
@@ -225,7 +226,7 @@ export const WORLDS = [
 ];
 
 // Wunschstücke: immer spielbar, unabhängig vom Fortschritt
-export const FAVORITES = { piano: ['schwanensee'], bass: ['b-schwanensee'] };
+export const FAVORITES = { piano: ['schwanensee'], bass: REP_FAVORITES };
 export const worldsFor = inst => (inst === 'bass' ? BASS_WORLDS : WORLDS);
 export const ALL_THEORY = { ...THEORY, ...BASS_THEORY };
 export { BASS_WORLDS };

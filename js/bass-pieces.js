@@ -2,6 +2,8 @@
 // lh = Basslinie, chords = Akkorde für die Begleitung, style2 = Begleitstil (straight, swing, waltz, klassisch)
 // Fingersätze (Simandl) werden automatisch berechnet. @d = Abstrich, @u = Aufstrich.
 
+import { REP_PIECES } from './bass-repertoire.js';
+
 const B = (o) => ({ by: 'Klavier-Quest', ts: [4, 4], ...o });
 
 export const BASS_PIECES = {
@@ -29,12 +31,6 @@ export const BASS_PIECES = {
     title: 'Ode an die Freude', by: 'L. v. Beethoven', style: 'Klassik', tempo: 84, key: 'D', tech: 'arco', style2: 'klassisch',
     lh: 'F#3/q F#3 G3 A3 | A3 G3 F#3 E3 | D3 D3 E3 F#3 | F#3/q. E3/e E3/h | F#3/q F#3 G3 A3 | A3 G3 F#3 E3 | D3 D3 E3 F#3 | E3/q. D3/e D3/h',
     chords: 'D | A | D | A | D | A | D | A D',
-  }),
-  // ---------- Wunschstücke
-  'b-schwanensee': B({
-    title: 'Schwanensee – Thema', by: 'P. I. Tschaikowsky', style: 'Klassik', tempo: 72, key: 'A', tech: 'arco', style2: 'klassisch',
-    lh: 'C#4/h F#3/e G#3 A3 B3 | C#4/q. A3/e C#4/q. A3/e | C#4/q. F#3/e A3 F#3 D3 A3 | F#3/w | C#4/h F#3/e G#3 A3 B3 | C#4/q. A3/e C#4/q. A3/e | C#4/q. F#3/e A3 F#3 D3 A3 | F#3/w',
-    chords: 'F#m | F#m | F#m D | F#m | F#m | F#m | F#m D | F#m',
   }),
   // ---------- Welt 2
   'b-schleichkatze': B({
@@ -150,4 +146,5 @@ export const BASS_PIECES = {
     lh: 'G2/q B2 D3 F3 | E3/q G3 B3 Bb3 | A3/q C4 E3 Eb3 | D3/q F#3 A3 F#3 | G3/q D3 B2 D#3 | E3/q G#3 B3 G#3 | A3/q E3 C3 C#3 | D3/q A2 F#2 A#2 | B2/q D#3 F#3 F3 | E3/q B2 G2 G#2 | A2/q C#3 E3 Eb3 | D3/q F#3 A3 Ab3 | G3/q B3 D4 B3 | C4/q G3 E3 Bb2 | A2/q C3 D3 F#3 | G3/h G2/h',
     chords: 'G | Em | Am | D7 | G | E7 | Am | D7 | B7 | Em | A7 | D7 | G | C | Am D7 | G',
   }),
+  ...REP_PIECES,
 };

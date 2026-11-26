@@ -134,7 +134,7 @@ export const ACHIEVEMENTS = [
   { id: 'stars30', t: 'Sternenhimmel', d: '30 Sterne gesammelt', ok: () => totalStars() >= 30 },
   { id: 'stars80', t: 'Milchstraße', d: '80 Sterne gesammelt', ok: () => totalStars() >= 80 },
   ...WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Comeback geschafft', 'Beidhändig', 'Tonarten-Meister', 'Akkord-Ass', 'In Bewegung', 'Ausdrucksstark'][i], d: `Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
-  ...BASS_WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Erster Strich', 'Fundament', 'Taktgeber', 'Walker', 'Lagen-Profi', 'Bass-Held'][i], d: `Kontrabass: Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
+  ...BASS_WORLDS.map((w, i) => ({ id: 'boss-' + w.id, t: ['Erster Strich', 'Fundament', 'Taktgeber', 'Walker', 'Lagen-Profi', 'Bass-Held', 'Repertoire-Meister'][i], d: `Kontrabass: Boss von Welt ${i + 1} besiegt`, ok: () => !!S.bosses[w.id] })),
   { id: 'streak3', t: 'Dranbleiber', d: '3 Tage Serie', ok: () => S.streak.best >= 3 },
   { id: 'streak7', t: 'Wochenheld', d: '7 Tage Serie', ok: () => S.streak.best >= 7 },
   { id: 'streak30', t: 'Unaufhaltsam', d: '30 Tage Serie', ok: () => S.streak.best >= 30 },

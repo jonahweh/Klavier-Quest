@@ -92,7 +92,7 @@ function home() {
 
     <section class="favs">
       <div class="sec-head"><h2>Wunschstücke</h2><span class="muted">Immer spielbar, egal wie weit du bist.</span></div>
-      <div class="fav-row">${FAVORITES[S.instrument].map(id => { const p = PIECES[id]; return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by)} · ${keyName(p.key, true)}</span></div>${starRow(stars('p-' + id))}</button>`; }).join('')}</div>
+      <div class="fav-row">${FAVORITES[S.instrument].map(id => { const p = PIECES[id]; return `<button class="fav" data-fav="${id}">${ICON.note}<div><b>${esc(p.title)}</b><span>${esc(p.by)} · ${keyLabel(p)}</span></div>${starRow(stars('p-' + id))}</button>`; }).join('')}</div>
     </section>
 
     <section class="extras">
@@ -124,8 +124,17 @@ function home() {
 }
 
 const FAV_WORLD = () => ({ id: isBass() ? 'bfav' : 'fav', hint: 1, maxPos: 9 });
-const KEY_MOLL = { C: 'a-Moll', G: 'e-Moll', D: 'h-Moll', A: 'fis-Moll', F: 'd-Moll', Bb: 'g-Moll', Eb: 'c-Moll' };
-function keyName(k, minor) { return minor ? KEY_MOLL[k] || k : k; }
+const KEY_DE = { C: 'C', G: 'G', D: 'D', A: 'A', F: 'F', Bb: 'B', Eb: 'Es' };
+const MINOR_DE = { A: 'a', E: 'e', B: 'h', 'F#': 'fis', 'C#': 'cis', D: 'd', G: 'g', C: 'c', F: 'f' };
+// Tonart aus dem ersten Akkord (Dur/Moll) bzw. der Vorzeichnung
+function keyLabel(p) {
+  if (p.keyLabel) return p.keyLabel;
+  const first = p.chords && p.chords.split('|')[0].trim().split(/\s+/)[0];
+  const m = first && /^([A-G][#b]?)(m(?!aj))?/.exec(first);
+  if (m && m[2]) return (MINOR_DE[m[1]] || m[1].toLowerCase()) + '-Moll';
+  if (m) return (KEY_DE[m[1]] || m[1]) + '-Dur';
+  return (KEY_DE[p.key] || p.key) + '-Dur';
+}
 
 function stepLabel(n) {
   if (!n.lesson) return `Boss: ${PIECES[n.world.boss].title}`;

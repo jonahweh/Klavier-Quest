@@ -25,9 +25,9 @@ export const PIECES = {
   },
   // ---------- Wunschstücke
   'schwanensee': {
-    title: 'Schwanensee – Thema', by: 'P. I. Tschaikowsky', style: 'Klassik', tempo: 72, key: 'A', ts: [4, 4],
-    rh: 'C#5:5/h F#4:1/e G#4:2 A4:3 B4:4 | C#5:5/q. A4:3/e C#5:5/q. A4:3/e | C#5:5/q. F#4:2/e A4:4 F#4:2 D4:1 A4:4 | F#4:2/w | C#5:5/h F#4:1/e G#4:2 A4:3 B4:4 | C#5:5/q. A4:3/e C#5:5/q. A4:3/e | C#5:5/q. F#4:2/e A4:4 F#4:2 D4:1 A4:4 | F#4:2/w',
-    lh: 'F#3+A3+C#4:5,3,1/w | F#3+A3+C#4:5,3,1/w | F#3+A3+C#4:5,3,1/h D3+F#3+A3:5,3,1/h | F#3+A3+C#4:5,3,1/w | F#2:5/e C#3:2 F#3:1 C#3:2 F#2:5 C#3:2 F#3:1 C#3:2 | F#2:5/e C#3:2 F#3:1 C#3:2 F#2:5 C#3:2 F#3:1 C#3:2 | F#2:5/e C#3:2 F#3:1 C#3:2 D2:5 A2:2 D3:1 A2:2 | F#2:5/e C#3:2 F#3:1 C#3:2 F#2+C#3+F#3:5,2,1/h',
+    title: 'Schwanensee – Thema', by: 'P. I. Tschaikowsky', style: 'Klassik', tempo: 70, key: 'D', keyLabel: 'h-Moll', ts: [4, 4],
+    rh: 'F#5:5/h B4:1/e C#5:2 D5:3 E5:4 | F#5:5/q. D5:3/e F#5:5/q. D5:3/e | F#5:5/q. B4:2/e D5:4 B4:2 G4:1 D5:4 | B4:2/w | F#5:5/h B4:1/e C#5:2 D5:3 E5:4 | F#5:5/q. D5:3/e F#5:5/q. D5:3/e | F#5:5/q. B4:2/e D5:4 B4:2 G4:1 D5:4 | B4:2/w | B3+D4+F#4:1,2,4/w | B3+D4+F#4:1,2,4/w | B3+D4+F#4:1,2,4/h B3+D4+G4:1,2,5/h | B3+D4+F#4:1,2,4/w | F#5:5/h B4:1/e C#5:2 D5:3 E5:4 | F#5:5/q. D5:3/e F#5:5/q. D5:3/e | F#5:5/q. B4:2/e D5:4 B4:2 G4:1 D5:4 | B4:2/w | D5:3/h C#5:2/h | B4:1/w',
+    lh: 'B2+D3+F#3:5,3,1/w | B2+D3+F#3:5,3,1/w | B2+D3+F#3:5,3,1/h G2+B2+D3:5,3,1/h | B2+D3+F#3:5,3,1/w | B2:5/e F#3:2 B3:1 F#3:2 B2:5 F#3:2 B3:1 F#3:2 | B2:5/e F#3:2 B3:1 F#3:2 B2:5 F#3:2 B3:1 F#3:2 | B2:5/e F#3:2 B3:1 F#3:2 G2:5 D3:2 G3:1 D3:2 | B2:5/e F#3:2 B3:1 F#3:2 B2:5/h | F#3:1/h B2:5/e C#3:4 D3:3 E3:2 | F#3:1/q. D3:3/e F#3:1/q. D3:3/e | F#3:1/q. B2:4/e D3:2 B2:4 G2:5 D3:2 | B2:5/w | B2+F#3:5,1/w | B2+F#3:5,1/w | B2+F#3:5,1/h G2+D3:5,1/h | B2+F#3:5,1/w | G2+D3:5,1/h F#2+C#3:5,1/h | B2+F#3:5,1/w',
   },
   // ---------- Welt 2
   'wellen': {
