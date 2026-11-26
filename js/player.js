@@ -2,7 +2,7 @@
 import { renderScore } from './notation.js';
 import { Input, Listener, Synth, Accomp, getCtx, unlockAudio } from './audio.js';
 import { Fingerboard, parseChords, chordLabel, TOLERANCE } from './bass.js';
-import { midiName, midiLabel, parseVoice } from './score.js';
+import { midiName, midiLabel, parseVoice, sliceScore } from './score.js';
 import { S, save } from './store.js';
 
 const isBlack = m => [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
@@ -82,8 +82,12 @@ export class Player {
     this.root = root;
     this.o = opt;
     this.score = opt.score;
+    this.full = opt.score;
     this.mode = opt.mode || (opt.boss ? 'rhythm' : 'wait');
-    this.tempoF = 1;
+    this.pkey = opt.pkey || null;
+    this.tempoF = (this.pkey && S.tempi && S.tempi[this.pkey]) || 1;
+    this.loop = false; this.loopUp = true; this.loopRuns = 0;
+    this.nBars = Math.round(this.score.total / this.score.measure);
     this.hint = opt.hint ?? 0;
     this.running = false;
     this.bass = !!opt.bass;
@@ -91,6 +95,7 @@ export class Player {
     this.chords = this.score.chordStr ? parseChords(this.score.chordStr, this.score.measure).map(k => ({ ...k, label: chordLabel(k.chord.sym) })) : null;
     this.mel = this.score.melStr ? parseVoice(this.score.melStr, 't').notes : null;
     if (this.mel && !this.chords) this.chords = [];
+    this.chordsFull = this.chords; this.melFull = this.mel;
     this.accOn = S.settings.accomp !== false;
     this.build();
   }
@@ -119,10 +124,20 @@ export class Player {
             <button data-hint="1" class="${this.hint === 1 ? 'on' : ''}" title="Nur Griff zeigen">${this.bass ? 'Griff' : 'Tasten'}</button>
             <button data-hint="0" class="${this.hint === 0 ? 'on' : ''}" title="Keine Hilfen">Ohne</button>
           </div>
+          <button class="btn ghost" data-a="range" title="Takte auswählen, Schleife üben">${ICON.loop} Takte</button>
           <button class="btn ghost" data-a="listen">${ICON.play} Anhören</button>
           ${this.chords ? `<button class="btn ghost" data-a="along" title="Nur Begleitung, ohne Mikrofon – funktioniert auch mit Bluetooth-Box und AirPods">${ICON.play} Mitspielen</button>` : ''}
           ${this.chords ? `<button class="btn ghost tog ${this.accOn ? 'on' : ''}" data-a="acc" title="Klavier und Schlagzeug im Rhythmus-Modus">Begleitung ${this.accOn ? 'an' : 'aus'}</button>` : ''}
           ${o.boss ? '<span class="boss-tag">Boss · Rhythmus-Modus, ab 2 Sternen geschafft</span>' : ''}
+        </div>
+        <div class="range-panel" hidden>
+          <label>Von Takt <select data-r="from">${Array.from({ length: this.nBars }, (_, i) => `<option ${i === 0 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
+          <label>bis <select data-r="to">${Array.from({ length: this.nBars }, (_, i) => `<option ${i === this.nBars - 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
+          <div class="seg small"><button data-loop="0" class="on">Einmal</button><button data-loop="1">Schleife</button></div>
+          <div class="seg small"><button data-up="1" class="on">Tempo steigern</button><button data-up="0">Tempo halten</button></div>
+          <button class="btn primary small" data-a="apply">Übernehmen</button>
+          <button class="btn ghost small" data-a="whole">Ganzes Stück</button>
+          <span class="muted range-info">Schleife: Nach jedem Durchgang mit mindestens 90 % geht das Tempo um 5 % hoch.</span>
         </div>
         <div class="staff-wrap">
           <div class="staff-move"><svg class="staff"></svg></div>
@@ -196,12 +211,26 @@ export class Player {
       this.updateHint();
       return;
     }
+    if (b.dataset.loop != null) { this.root.querySelectorAll('[data-loop]').forEach(x => x.classList.toggle('on', x === b)); return; }
+    if (b.dataset.up != null) { this.root.querySelectorAll('[data-up]').forEach(x => x.classList.toggle('on', x === b)); return; }
     const a = b.dataset.a;
     if (a === 'exit') { this.destroy(); this.o.onExit?.(); }
+    if (a === 'range') { const p = this.$('.range-panel'); p.hidden = !p.hidden; this.layout(true); }
+    if (a === 'apply' || a === 'whole') {
+      let f = +this.$('[data-r=from]').value, t = +this.$('[data-r=to]').value;
+      if (a === 'whole') { f = 1; t = this.nBars; this.$('[data-r=from]').value = 1; this.$('[data-r=to]').value = this.nBars; }
+      if (t < f) [f, t] = [t, f];
+      this.loop = this.$('[data-loop="1"]').classList.contains('on') && a !== 'whole';
+      this.loopUp = this.$('[data-up="1"]').classList.contains('on');
+      this.setRange(f, t);
+      this.$('.range-panel').hidden = true;
+      this.layout(true);
+    }
     if (a === 'slower' || a === 'faster') {
       this.tempoF = Math.max(0.5, Math.min(1.3, this.tempoF + (a === 'faster' ? 0.1 : -0.1)));
-      this.tempoF = Math.round(this.tempoF * 10) / 10;
+      this.tempoF = Math.round(this.tempoF * 20) / 20;
       this.root.querySelector('.tv').textContent = this.bpm();
+      if (this.pkey) { (S.tempi ||= {})[this.pkey] = this.tempoF; save(); }
     }
     if (a === 'listen') this.preview(true);
     if (a === 'along') this.preview(false);
@@ -213,7 +242,7 @@ export class Player {
       if (!this.accOn) Accomp.stop();
     }
     if (a === 'start') {
-      if (this.running) { this.stop(); this.reset(); }
+      if (this.running || this.loopT) { clearTimeout(this.loopT); this.loopT = null; const was = this.loop; this.stop(); if (was && this.loopRuns) this.feedback(`Schleife beendet nach ${this.loopRuns} Durchgängen.`, 'tip', 3000); this.flushStats(); this.reset(); }
       else this.start();
     }
     if (a === 'mic') this.toggleMic();
@@ -238,6 +267,53 @@ export class Player {
       return false;
     }
   }
+
+  setRange(f, t) {
+    if (this.running) this.stop();
+    this.stopPreview();
+    this.range = [f, t];
+    const whole = f === 1 && t === this.nBars;
+    this.score = whole ? this.full : sliceScore(this.full, f, t);
+    const s = (f - 1) * this.full.measure, e = t * this.full.measure;
+    const cut = list => list ? list.filter(k => k.beat >= s - 1e-6 && k.beat < e - 1e-6).map(k => ({ ...k, beat: k.beat - s })) : null;
+    this.chords = whole ? this.chordsFull : cut(this.chordsFull);
+    this.mel = whole ? this.melFull : cut(this.melFull);
+    this.loopRuns = 0;
+    this.layout();
+    this.reset();
+    this.feedback(whole ? 'Ganzes Stück ausgewählt.' : `Takt ${f}–${t}${this.loop ? ' in Schleife' : ''} ausgewählt.`, 'tip', 2500);
+  }
+  // Fehlerstatistik je Ton sammeln
+  stat(midi, err, cents) {
+    const b = (this.statBuf ||= {});
+    const k = midi;
+    const x = (b[k] ||= { n: 0, err: 0, c: 0, cn: 0 });
+    x.n++; x.err += err;
+    if (cents != null) { x.c += Math.abs(cents); x.cn++; }
+  }
+  flushStats() {
+    if (!this.statBuf) return;
+    const inst = this.bass ? 'bass' : 'piano';
+    const all = ((S.noteStats ||= {})[inst] ||= {});
+    for (const [k, v] of Object.entries(this.statBuf)) {
+      const x = (all[k] ||= { n: 0, err: 0, c: 0, cn: 0 });
+      x.n += v.n; x.err += v.err; x.c += v.c; x.cn += v.cn;
+    }
+    this.statBuf = null;
+    save();
+  }
+  startRec() {
+    this.recUrl = null;
+    try {
+      if (!Listener.running || !window.MediaRecorder || S.settings.record === false) return;
+      const chunks = [];
+      this.rec = new MediaRecorder(Listener.stream);
+      this.rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+      this.rec.onstop = () => { this.recUrl = URL.createObjectURL(new Blob(chunks, { type: this.rec.mimeType || 'audio/mp4' })); };
+      this.rec.start();
+    } catch (e) { this.rec = null; }
+  }
+  stopRec() { try { if (this.rec && this.rec.state === 'recording') this.rec.stop(); } catch (e) { /* egal */ } }
 
   reset() {
     this.idx = 0;
@@ -349,6 +425,7 @@ export class Player {
     this.t0wall = performance.now();
     this.$('[data-a=start]').innerHTML = `${ICON.stop} Stopp`;
     this.wake();
+    this.startRec();
     if (this.mode === 'wait') {
       this.evStart = performance.now() / 1000;
       Listener.setExpected(this.ev[0].midis);
@@ -368,6 +445,7 @@ export class Player {
 
   stop() {
     this.running = false;
+    this.stopRec();
     Synth.stopAll();
     this.$('.countin')?.classList.remove('on');
     this.$('[data-a=start]').innerHTML = `${ICON.play} Start`;
@@ -432,6 +510,7 @@ export class Player {
   }
   advance() {
     const e = this.ev[this.idx];
+    for (const m of e.midis) this.stat(m, e.tries ? 1 : 0, e.inton);
     const ip = e.intonPts ?? 1;
     e.status = e.tries === 0 && ip >= 0.9 ? 'ok' : 'meh';
     e.pts = (e.tries === 0 ? 1 : e.tries === 1 ? 0.5 : 0.25) * ip;
@@ -504,7 +583,7 @@ export class Player {
       // verpasste
       while (this.missIdx < this.ev.length && this.ev[this.missIdx].beat * spb + this.win < songT) {
         const e = this.ev[this.missIdx];
-        if (e.status === 'pending') { e.status = 'miss'; e.pts = 0; this.combo = 0; this.feedback('Verpasst', 'bad', 700); this.paint(); this.updateStats(); }
+        if (e.status === 'pending') { e.midis.forEach(m => this.stat(m, 1)); e.status = 'miss'; e.pts = 0; this.combo = 0; this.feedback('Verpasst', 'bad', 700); this.paint(); this.updateStats(); }
         this.missIdx++;
       }
       // Hinweis-Tasten
@@ -566,6 +645,7 @@ export class Player {
         if (ac > Math.max(30, this.tol * 2)) itxt = ` · etwas ${best.inton > 0 ? 'hoch' : 'tief'}`;
       }
       best.pts = pts;
+      best.midis.forEach(m => this.stat(m, pts >= 0.9 ? 0 : 0.5, best.inton));
       this.combo++; this.best = Math.max(this.best, this.combo);
       const early = Object.values(best.hits).reduce((a, h) => a + (h - te), 0) / dts.length;
       this.feedback(grade + (grade !== 'Perfekt' ? (early < 0 ? ' · zu früh' : ' · zu spät') : '') + itxt, grade === 'OK' || itxt ? 'tip' : 'good', 800);
@@ -593,9 +673,10 @@ export class Player {
       for (let i = 0; i < cb; i++) Synth.click(t0 + i * spb, i === 0);
     }
     const tM = withMelody ? t0 : t0 + this.score.measure * spb;
-    if (withMelody) for (const n of this.score.notes) if (!n.rest) for (const p of n.pitches) {
-      if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, n.dur * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
-      else Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
+    if (withMelody) for (const n of this.score.notes) if (!n.rest && !n.tiedFrom) for (const p of n.pitches) {
+      const d = n.playDur || n.dur;
+      if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, d * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
+      else Synth.note(p.midi, t0 + n.beat * spb, d * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
     }
     if (this.chords && (this.accOn || !withMelody)) Accomp.schedule(this.chords, spb, tM, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1, this.mel);
     Listener.muted = true;
@@ -620,8 +701,21 @@ export class Player {
 
   finish() {
     this.stop();
+    this.flushStats();
     this.$('[data-a=start]').innerHTML = `${ICON.play} Start`;
     const acc = this.accuracy();
+    if (this.loop) {
+      this.loopRuns++;
+      let msg = `Durchgang ${this.loopRuns}: ${Math.round(acc * 100)} %`;
+      if (this.mode === 'rhythm' && this.loopUp && acc >= 0.9 && this.tempoF < 1.3) {
+        this.tempoF = Math.min(1.3, Math.round((this.tempoF + 0.05) * 20) / 20);
+        this.$('.tv').textContent = this.bpm();
+        msg += ` · schneller: ${this.bpm()} BPM`;
+      }
+      this.feedback(msg + ' · Stopp beendet die Schleife', 'good', 3000);
+      this.loopT = setTimeout(() => { if (!this.running && this.loop) this.start(); }, 1500);
+      return;
+    }
     const [s3, s2, s1] = this.bass ? [0.88, 0.7, 0.5] : [0.95, 0.8, 0.6];
     const st = acc >= s3 ? 3 : acc >= s2 ? 2 : acc >= s1 ? 1 : 0;
     const res = {
@@ -638,6 +732,8 @@ export class Player {
   unwake() { try { this.wl?.release(); } catch (e) { /* egal */ } this.wl = null; }
 
   destroy() {
+    clearTimeout(this.loopT); this.loop = false;
+    this.flushStats();
     this.stopPreview();
     this.stop();
     cancelAnimationFrame(this.praf);
@@ -669,6 +765,14 @@ export const ICON = {
   gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   piece: '<svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 9h8M8 12.5h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  loop: '<svg viewBox="0 0 24 24"><path d="M17 3l3 3-3 3M20 6H8a4 4 0 00-4 4v1M7 21l-3-3 3-3M4 18h12a4 4 0 004-4v-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  rec: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="currentColor"/></svg>',
+  chart: '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 00.5-8 6 6 0 00-11.5 1.5A3.3 3.3 0 007 18z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+  scale: '<svg viewBox="0 0 24 24"><path d="M3 20h4v-4h4v-4h4V8h4V4h2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+  jam: '<svg viewBox="0 0 24 24"><path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6.5" cy="18" r="2.6" fill="currentColor"/><circle cx="17.5" cy="16" r="2.6" fill="currentColor"/></svg>',
+  wand: '<svg viewBox="0 0 24 24"><path d="M4 20L15 9M14 4v3M19 9h-3M18 5l-2 2M10 4l.7 1.6M20 14l-1.6-.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   tuner: '<svg viewBox="0 0 24 24"><path d="M4 16a8 8 0 0116 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 16l4-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16" r="1.8" fill="currentColor"/></svg>',
   drill: '<svg viewBox="0 0 24 24"><path d="M3 7h18M3 11h18M3 15h18" stroke="currentColor" stroke-width="1.6"/><ellipse cx="9" cy="13" rx="2.6" ry="2" fill="currentColor"/><path d="M11.4 13V4" stroke="currentColor" stroke-width="1.8"/><ellipse cx="16" cy="9" rx="2.6" ry="2" fill="currentColor"/><path d="M18.4 9V1.8" stroke="currentColor" stroke-width="1.8"/></svg>',
 };

@@ -169,7 +169,8 @@ p { margin: 0 0 .7em; }
 .staff .bw { fill: var(--ink2); }
 .staff .tq { font-style: italic; font-weight: 700; font-family: Georgia, serif; fill: var(--ink); }
 .staff .ch { font-weight: 800; font-family: Manrope, sans-serif; fill: var(--ink); }
-.staff .mn { font: 600 11px Manrope, sans-serif; fill: var(--ink3); }
+.staff .mn { font-weight: 700; font-family: Manrope, sans-serif; fill: var(--ink3); }
+.staff .tie { fill: none; stroke: var(--ink); stroke-width: 1.6; }
 .staff .ev.cur .hd, .staff .ev.cur .sm, .staff .ev.cur .ac, .staff .ev.next .hd, .staff .ev.next .sm { fill: var(--accent); }
 .staff .ev.cur .nm { stroke: var(--accent); }
 .staff .ev.ok .hd, .staff .ev.ok .sm, .staff .ev.ok .ac { fill: var(--ok); }

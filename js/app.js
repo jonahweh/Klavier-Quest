@@ -246,7 +246,7 @@ function runStep(world, lesson, step, back) {
   app.innerHTML = '';
   app.onclick = null;
   current = new Player(app, {
-    score, title, sub, bass, boss: !!step.boss, hint: step.boss ? Math.min(1, hintFor(world)) : hintFor(world),
+    score, title, sub, bass, pkey: (bass ? 'b:' : 'p:') + (step.piece || step.id), boss: !!step.boss, hint: step.boss ? Math.min(1, hintFor(world)) : hintFor(world),
     onExit: back,
     onFinish: (res, pl) => results(world, lesson, step, res, pl, back),
   });
@@ -287,6 +287,7 @@ function results(world, lesson, step, res, pl, back) {
       </div>
       ${res.inton != null ? `<p class="inton-line">Intonation: im Schnitt <b>${res.inton} Cent</b> daneben${res.inton <= 10 ? ' – sehr sauber!' : res.inton <= 20 ? ' – gut.' : ' – achte auf die Nadel.'}</p>` : ''}
       ${note ? `<p class="note">${note}</p>` : ''}
+      ${pl.rec ? `<div class="rec-row"><button class="btn ghost small" data-r="play">${ICON.play} Aufnahme anhören</button><audio class="rec-audio" controls hidden></audio></div>` : ''}
       ${st > prev && prev > 0 ? '<p class="badge">Neuer Bestwert!</p>' : ''}
       <div class="row">
         <button class="btn ghost" data-r="again">Nochmal</button>
@@ -297,6 +298,13 @@ function results(world, lesson, step, res, pl, back) {
   if (st >= 2) confetti(ov);
   ov.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.r === 'play') {
+      const au = ov.querySelector('.rec-audio');
+      const go = () => { if (!pl.recUrl) return setTimeout(go, 200); au.src = pl.recUrl; au.hidden = false; b.hidden = true; au.play().catch(() => {}); };
+      go();
+      return;
+    }
+    ov.querySelector('.rec-audio')?.pause();
     ov.remove();
     if (b.dataset.r === 'again') {
       if (step.type === 'drill') runStep(world, lesson, step, back);
@@ -350,7 +358,7 @@ function theoryScreen(id, onDone, back) {
       const spb = 60 / sc.tempo, t0 = getCtx().currentTime + 0.1;
       const els = renderScore(app.querySelector('.staff'), sc, ro()).evEls;
       sc.events.forEach((ev, i) => {
-        ev.notes.forEach(n => n.pitches.forEach(p => t.bass
+        ev.notes.forEach(n => n.pitches.forEach(p => n.tiedFrom ? null : t.bass
           ? Synth.bass(p.midi + TRANSPOSE, t0 + n.beat * spb, n.dur * spb * 0.9, sc.tech === 'pizz', 0.9)
           : Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95)));
         timers.push(setTimeout(() => { els.forEach(g => g?.classList.remove('cur')); els[i]?.classList.add('cur'); }, (ev.beat * spb + 0.1) * 1000));

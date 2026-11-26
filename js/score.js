@@ -1,6 +1,7 @@
 // Notentext-Parser, Namen, Zufallsgenerator für Übungen
 // Token-Format:  C4  F#4  Bb3  C3+E3+G3  r   optional :Finger (z.B. C4:1 oder C3+E3+G3:5,3,1)
-// Dauer: /w /h /q /e /s  optional Punkt (/q.)  – Dauer gilt weiter, bis eine neue kommt.
+// Dauer: /w /h /q /e /s /t(Triole)  optional Punkt (/q.)  – Dauer gilt weiter, bis eine neue kommt.
+// Haltebogen zur nächsten Note: ~ ans Ende (z. B. E3/w~)
 
 const SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -35,7 +36,7 @@ export function parseVoice(str, staff) {
   for (const raw of str.trim().split(/\s+/)) {
     if (!raw) continue;
     if (raw === '|') { barChecks.push(beat); continue; }
-    const m = /^([^:/@]+)(?::([\d,]+))?(?:@([du]))?(?:\/([whqest])(\.)?)?$/.exec(raw);
+    const m = /^([^:/@~]+)(?::([\d,]+))?(?:@([du]))?(?:\/([whqest])(\.)?)?(~)?$/.exec(raw);
     if (!m) throw new Error('Ungültiges Token: ' + raw);
     if (m[4]) dur = DUR[m[4]] * (m[5] ? 1.5 : 1);
     if (m[1] === 'r') {
@@ -43,11 +44,43 @@ export function parseVoice(str, staff) {
     } else {
       const fingers = m[2] ? m[2].split(',').map(Number) : [];
       const pitches = m[1].split('+').map((p, i) => ({ ...parsePitch(p), finger: fingers[i] }));
-      out.push({ beat, dur, staff, rest: false, pitches, bow: m[3] || null });
+      const prev = out[out.length - 1];
+      const tiedFrom = !!(prev && prev.tieNext && !prev.rest && prev.pitches.map(p => p.midi).join() === pitches.map(p => p.midi).join());
+      const note = { beat, dur, staff, rest: false, pitches, bow: m[3] || null, tieNext: !!m[6], tiedFrom };
+      if (tiedFrom) { prev.tieTo = note; let h = prev; while (h.tiedFrom && h.tieHead) h = h.tieHead; note.tieHead = h.tieHead || prev; }
+      out.push(note);
     }
     beat = Math.round((beat + dur) * 48) / 48;   // Raster: Triolen und Sechzehntel exakt
   }
+  for (const n of out) if (n.tieTo && !n.tiedFrom) { let d = n.dur, x = n; while (x.tieTo) { x = x.tieTo; d += x.dur; } n.playDur = d; }
   return { notes: out, length: beat, barChecks };
+}
+
+// Ereignisse: alles, was gleichzeitig angeschlagen wird (übergebundene Noten zählen nicht neu)
+export function makeEvents(notes, tr = 0) {
+  const map = new Map();
+  for (const n of notes) {
+    n.ev = undefined;
+    if (n.rest || n.tiedFrom) continue;
+    const k = Math.round(n.beat * 1000);
+    if (!map.has(k)) map.set(k, { beat: n.beat, midis: [], notes: [] });
+    const e = map.get(k);
+    e.notes.push(n);
+    for (const p of n.pitches) if (!e.midis.includes(p.midi)) e.midis.push(p.midi);
+  }
+  const events = [...map.values()].sort((a, b) => a.beat - b.beat);
+  events.forEach((e, i) => { e.i = i; e.midis = e.midis.map(m => m + tr).sort((a, b) => a - b); e.notes.forEach(n => (n.ev = i)); });
+  return events;
+}
+
+// Ausschnitt von Takt a bis Takt b (1-basiert, inklusive)
+export function sliceScore(score, a, b) {
+  const L = score.measure, s = (a - 1) * L, e = b * L;
+  const notes = score.notes.filter(n => n.beat >= s - 1e-6 && n.beat < e - 1e-6).map(n => ({ ...n, beat: n.beat - s, tiedFrom: n.tiedFrom && n.beat > s + 1e-6 }));
+  const events = makeEvents(notes, score.transpose || 0);
+  for (const ev of events) { const o = score.events.find(x => Math.abs(x.beat - (ev.beat + s)) < 1e-6); if (o && o.grip) ev.grip = o.grip; }
+  const all = notes.flatMap(n => n.pitches.map(p => p.midi + (score.transpose || 0)));
+  return { ...score, notes, events, total: e - s, offset: s, barOffset: a - 1, lo: all.length ? Math.min(...all) : score.lo, hi: all.length ? Math.max(...all) : score.hi, full: score.full || score };
 }
 
 // piece: {ts:[4,4], key:'C', tempo:90, rh:'...', lh:'...'}  (rh -> Violinschlüssel, lh -> Bassschlüssel)
@@ -62,19 +95,8 @@ export function buildScore(piece) {
   const total = Math.max(...voices.map(v => v.length));
   const staves = [...new Set(voices.map(v => v.notes[0]?.staff).filter(Boolean))].sort((a, b) => (a === 't' ? -1 : 1));
   if (piece.staves) staves.splice(0, staves.length, ...piece.staves);
-  // Events (alles, was gleichzeitig angeschlagen wird)
-  const map = new Map();
-  for (const n of notes) {
-    if (n.rest) continue;
-    const k = Math.round(n.beat * 1000);
-    if (!map.has(k)) map.set(k, { beat: n.beat, midis: [], notes: [] });
-    const e = map.get(k);
-    e.notes.push(n);
-    for (const p of n.pitches) if (!e.midis.includes(p.midi)) e.midis.push(p.midi);
-  }
-  const events = [...map.values()].sort((a, b) => a.beat - b.beat);
   const tr = piece.transpose || 0;
-  events.forEach((e, i) => { e.i = i; e.midis = e.midis.map(m => m + tr).sort((a, b) => a - b); e.notes.forEach(n => (n.ev = i)); });
+  const events = makeEvents(notes, tr);
   const all = notes.flatMap(n => n.pitches.map(p => p.midi + tr));
   return {
     ts, key: piece.key || 'C', tempo: piece.tempo || 80, staves, notes, events, total,

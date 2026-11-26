@@ -70,6 +70,13 @@ export function renderScore(svg, score, opt = {}) {
   const barX = b => X(b) - Math.min(P * 0.32, 26);
   const y1 = top[staves[0]], y2 = lastTop + 4 * S;
   for (const b of bars) out += `<rect class="ln" x="${barX(b)}" y="${y1}" width="1.3" height="${y2 - y1}"/>`;
+  // Taktnummern
+  if (!opt.noTime && opt.numbers !== false) {
+    const off = score.barOffset || 0;
+    const ny = staves.length > 1 ? top[staves[1]] - 1.3 * S : y2 + 2.3 * S;
+    const list = [0, ...bars];
+    list.forEach((b, i) => { if (i === 0 && !off) return; out += `<text class="mn" x="${(i === 0 ? H - 14 : barX(b) + 3)}" y="${ny}" style="font-size:${(S * 0.8).toFixed(1)}px">${i + 1 + off}</text>`; });
+  }
   if (!opt.noTime) {
     const ex = X(score.total) - Math.min(P * 0.32, 26) + 8;
     out += `<rect class="ln" x="${ex - 6}" y="${y1}" width="1.3" height="${y2 - y1}"/><rect class="ln" x="${ex - 2}" y="${y1}" width="4" height="${y2 - y1}"/>`;
@@ -137,6 +144,14 @@ export function renderScore(svg, score, opt = {}) {
     }
     // Köpfe
     for (const h of heads) g += glyph(headName, x - hwx / 2 + h.dx, h.y, 'hd');
+    // Haltebogen zur folgenden Note
+    if (n.tieNext) {
+      const x2 = X(n.beat + n.dur);
+      for (const h of heads) {
+        const yy = h.y + (down ? -0.7 * S : 0.7 * S), c = down ? -1.1 * S : 1.1 * S;
+        out += `<path class="tie" d="M${x + hwx / 2 + 1} ${yy} Q${(x + x2) / 2} ${yy + c} ${x2 - hwx / 2 - 1} ${yy}"/>`;
+      }
+    }
     // Punkt
     if (isDotted(tstr)) for (const h of heads) {
       const onLine = (TOP[st] - h.step) % 2 === 0;
