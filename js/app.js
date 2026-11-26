@@ -124,11 +124,12 @@ function home() {
 }
 
 const FAV_WORLD = () => ({ id: isBass() ? 'bfav' : 'fav', hint: 1, maxPos: 9 });
-const KEY_DE = { C: 'C', G: 'G', D: 'D', A: 'A', F: 'F', Bb: 'B', Eb: 'Es' };
+const KEY_DE = { C: 'C', G: 'G', D: 'D', A: 'A', E: 'E', F: 'F', Bb: 'B', Eb: 'Es' };
 const MINOR_DE = { A: 'a', E: 'e', B: 'h', 'F#': 'fis', 'C#': 'cis', D: 'd', G: 'g', C: 'c', F: 'f' };
 // Tonart aus dem ersten Akkord (Dur/Moll) bzw. der Vorzeichnung
 function keyLabel(p) {
   if (p.keyLabel) return p.keyLabel;
+  if (p.key === 'E' && !p.chords) return 'cis-Moll';
   const first = p.chords && p.chords.split('|')[0].trim().split(/\s+/)[0];
   const m = first && /^([A-G][#b]?)(m(?!aj))?/.exec(first);
   if (m && m[2]) return (MINOR_DE[m[1]] || m[1].toLowerCase()) + '-Moll';

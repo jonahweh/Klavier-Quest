@@ -164,6 +164,7 @@ p { margin: 0 0 .7em; }
 .staff .rs { fill: var(--ink2); }
 .staff .fg { font-weight: 700; font-family: Manrope, sans-serif; fill: var(--ink2); text-anchor: middle; }
 .staff .nm { font-weight: 800; font-family: Manrope, sans-serif; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: var(--ink); stroke-linejoin: round; }
+.staff .tri { font-style: italic; font-weight: 700; font-family: Georgia, serif; fill: var(--ink2); text-anchor: middle; }
 .staff .pl { font-weight: 800; font-family: Manrope, sans-serif; fill: var(--accent); text-anchor: middle; }
 .staff .bw { fill: var(--ink2); }
 .staff .tq { font-style: italic; font-weight: 700; font-family: Georgia, serif; fill: var(--ink); }

@@ -435,7 +435,7 @@ export const Listener = {
 export const Accomp = {
   run: null,
   // chords: [{beat, dur, chord:{root, iv}}]
-  schedule(chords, spb, t0, style = 'straight', measure = 4, vol = 0.55) {
+  schedule(chords, spb, t0, style = 'straight', measure = 4, vol = 0.55, mel = null) {
     this.stop();
     Synth.init();
     const c = getCtx();
@@ -462,6 +462,8 @@ export const Accomp = {
         v.forEach((m, i) => Synth.note(m, T(k.beat) + i * 0.04, k.dur * spb * 0.95, 0.75, g));
       }
     }
+    // Melodie-Stimme (z. B. erste Violine), leise darüber
+    if (mel) for (const n of mel) if (!n.rest) for (const p of n.pitches) Synth.note(p.midi, T(n.beat), n.dur * spb * 0.95, 0.7, g);
     // Schlagzeug
     if (style === 'swing' || style === 'straight' || style === 'waltz') {
       const total = chords.length ? chords[chords.length - 1].beat + chords[chords.length - 1].dur : 0;

@@ -35,6 +35,15 @@ const OST = 'D3/e D3 A2 D3 D3 A2 D3 F3 | Bb2/e Bb2 F2 Bb2 Bb2 F2 Bb2 D3 | F2/e F
 const WR = 'G2/q B2/e D3/q B2/e | E2/q G2/e B2/q G2/e | C3/q E3/e G3/q E3/e | D3/q F#3/e A3/q F#3/e';
 const HM = 'E2/e E2 E2/q E2/e E2 E2/q | C3/e C3 C3/q C3/e C3 C3/q | D3/e D3 D3/q D3/e D3 D3/q | B2/e B2 B2/q B2/e B2 B2/q';
 
+
+// ---------- Grieg: Åses Tod (h-Moll) – Bassstimme nach der Partitur, Melodie der 1. Violinen als Begleitung
+const ASE_B = 'B2/q D3 F#3/h | B2/q D3 F#3/h | B2/q C#3/e D3/e E3/q D3/q | C#3/q D3/e E3/e F#3/q. r/e | B2/q D3/q G3/h | B2/q D3/q G3/h | C#3/q D3/e E3/e F#3/q E3/q | D3/e C#3/e B2/h r/q | F#3/q A3/q C#4/h | F#3/q A3/q C#4/h | F#3/q G#3/e A3/e B3/q A3/q | G#3/q A3/e B3/e C#4/q. r/e | F#3/q A3/q D4/h | F#3/q A3/q D4/h | G#3/q A3/e B3/e C#4/q B3/q | A3/e G#3/e F#3/h F#3/e r/e | B2/q D3 F#3/h | B2/q D3 F#3/h | B2/q C#3/e D3/e E3/q D3/q | C#3/q D3/e E3/e F#3/q. r/e | B2/q D3/q G3/h | B2/q D3/q G3/h | C#3/q D3/e E3/e F#3/q E3/q | D3/e C#3/e B2/h r/q | r/w | r/w | r/w | r/w | r/w | r/w | r/w | r/w | G3/h D3/h | G3/h D3/h | G3/h D3/h | C#3/h F#3/q. r/e | C3/h G2/h | C3/h G2/h | C3/h G2/h | F#2/h B2/q. r/e | F#2/h B2/q. r/e | E2/w | B2/h B2/e r/e r/q | B2/h B2/e r/e r/q | B2/w';
+const ASE_M = 'F#4/q B4 C#5/h | F#4/q B4 C#5/h | D5/q C#5 B4 C#5/e D5/e | E5/q D5 C#5/q. r/e | F#4/q B4 C#5/h | F#4/q B4 C#5/h | E5/q D5 C#5 D5/e E5/e | A#4/q B4/h r/q | C#5/q F#5 G#5/h | C#5/q F#5 G#5/h | A5/q G#5 F#5 G#5/e A5/e | B5/q A5 G#5/q. r/e | C#5/q F#5 G#5/h | C#5/q F#5 G#5/h | B5/q A5 G#5 A5/e B5/e | E#5/q F#5/h F#5/e r/e | F#5/q B5 C#6/h | F#5/q B5 C#6/h | D6/q C#6 B5 C#6/e D6/e | E6/q D6 C#6/q. r/e | F#5/q B5 C#6/h | F#5/q B5 C#6/h | E6/q D6 C#6 D6/e E6/e | A#5/q B5/h r/q | B5/q Bb5 A5/h | B5/q Bb5 A5/h | B5/q Bb5 A5/h | A5/q G5 F#5/q. r/e | E5/q Eb5 D5/h | E5/q Eb5 D5/h | E5/q Eb5 D5/h | D5/q C#5 B4/q. r/e | B4/q Bb4 A4/h | B4/q Bb4 A4/h | B4/q Bb4 A4/h | A4/q G4 F#4/q. r/e | E4/q Eb4 D4/h | E4/q Eb4 D4/h | E4/q Eb4 D4/h | D4/q C#4 B3/q. r/e | D4/q C#4 B3/q. r/e | D4/h C#4/h | B3/h B3/e r/e r/q | B3/h B3/e r/e r/q | B3/w';
+const ASE_C = 'Bm | Bm | Bm | F# | G | G | F# | F# Bm | F#m | F#m | F#m | C# | D | D | E | C# F#m | Bm | Bm | Bm | F# | G | G | F# | F# Bm | - | - | - | - | - | - | - | - | G D | G D | G D | F# | C G | C G | C G | Bm | Bm | Em | Bm | Bm | Bm';
+// ---------- Mahler: Sinfonie Nr. 5, Trauermarsch (cis-Moll, 2/2) – Trompetenruf (für Bass gesetzt) und Kondukt der Bässe
+const MA5_TR = 'r/h r/q C#3/t C#3 C#3 | C#3/h r/q C#3/t C#3 C#3 | C#3/h r/q C#3/t C#3 C#3 | E3/w | r/h r/q C#3/t C#3 C#3 | E3/h r/q C#3/t C#3 C#3 | E3/h r/q C#3/t E3 G#3';
+const MA5_KO = 'C#3/q r G#2 r | C#3/q r r/h | C#3/q r G#2 r | E3/q r C#3 r | A2/q r F#2 r | A3/q r F#3 r | D#3/q r r/h | B2/q r r/h | E3/q r r/h | D#4/q r C#4 r';
+
 export const REP_PIECES = {
   'r-schwanensee-l': R({ title: 'Schwanensee (leicht)', by: 'P. I. Tschaikowsky', style: 'Klassik', tempo: 66, key: 'D',
     lh: `${SW} | ${SW} | D3/h C#3/h | B2/w`, chords: `${SW_CH} | ${SW_CH} | G F# | Bm` }),
@@ -48,6 +57,14 @@ export const REP_PIECES = {
     lh: MA, chords: rep('Dm', 8) }),
   'r-mahler-o': R({ title: 'Bruder Jakob in Moll (original)', by: 'G. Mahler', style: 'Klassik', tempo: 66, key: 'F',
     lh: `${MA} | ${MA}`, chords: rep('Dm', 16) }),
+  'r-ase-l': R({ title: 'Åses Tod (leicht)', by: 'E. Grieg', style: 'Klassik', tempo: 50, key: 'D',
+    lh: 'B2/q D3 F#3/h | B2/q D3 F#3/h | B2/q C#3/e D3/e E3/q D3/q | C#3/q D3/e E3/e F#3/q. r/e | B2/q D3/q G3/h | B2/q D3/q G3/h | C#3/q D3/e E3/e F#3/q E3/q | D3/e C#3/e B2/h r/q | F#3/q A3/q C#4/h | F#3/q A3/q C#4/h | F#3/q G#3/e A3/e B3/q A3/q | G#3/q A3/e B3/e C#4/q. r/e | F#3/q A3/q D4/h | F#3/q A3/q D4/h | G#3/q A3/e B3/e C#4/q B3/q | A3/e G#3/e F#3/h F#3/e r/e | B2/q D3 F#3/h | B2/q D3 F#3/h | B2/q C#3/e D3/e E3/q D3/q | C#3/q D3/e E3/e F#3/q. r/e | B2/q D3/q G3/h | B2/q D3/q G3/h | C#3/q D3/e E3/e F#3/q E3/q | D3/e C#3/e B2/h r/q | B2/w', mel: 'F#4/q B4 C#5/h | F#4/q B4 C#5/h | D5/q C#5 B4 C#5/e D5/e | E5/q D5 C#5/q. r/e | F#4/q B4 C#5/h | F#4/q B4 C#5/h | E5/q D5 C#5 D5/e E5/e | A#4/q B4/h r/q | C#5/q F#5 G#5/h | C#5/q F#5 G#5/h | A5/q G#5 F#5 G#5/e A5/e | B5/q A5 G#5/q. r/e | C#5/q F#5 G#5/h | C#5/q F#5 G#5/h | B5/q A5 G#5 A5/e B5/e | E#5/q F#5/h F#5/e r/e | F#5/q B5 C#6/h | F#5/q B5 C#6/h | D6/q C#6 B5 C#6/e D6/e | E6/q D6 C#6/q. r/e | F#5/q B5 C#6/h | F#5/q B5 C#6/h | E6/q D6 C#6 D6/e E6/e | A#5/q B5/h r/q | B3/w', chords: 'Bm | Bm | Bm | F# | G | G | F# | F# Bm | F#m | F#m | F#m | C# | D | D | E | C# F#m | Bm | Bm | Bm | F# | G | G | F# | F# Bm | Bm' }),
+  'r-ase-o': R({ title: 'Åses Tod (original)', by: 'E. Grieg', style: 'Klassik', tempo: 50, key: 'D',
+    lh: ASE_B, mel: ASE_M, chords: ASE_C }),
+  'r-mahler5-l': R({ title: 'Trauermarsch (leicht)', by: 'G. Mahler', style: 'Klassik', tempo: 60, key: 'E', ts: [2, 2], tech: 'pizz',
+    lh: `${MA5_KO} | C#3/w` }),
+  'r-mahler5-o': R({ title: 'Trauermarsch (original)', by: 'G. Mahler', style: 'Klassik', tempo: 72, key: 'E', ts: [2, 2],
+    lh: `${MA5_TR} | ${MA5_KO} | C#3/w` }),
   'r-bach-l': R({ title: 'Prélude G-Dur (leicht)', by: 'J. S. Bach', style: 'Klassik', tempo: 66, key: 'G',
     lh: `${BA_E} | ${BA_E} | G2/w`, chords: 'G | C | D7 | G | G | C | D7 | G | G' }),
   'r-bach-o': R({ title: 'Prélude G-Dur (original)', by: 'J. S. Bach', style: 'Klassik', tempo: 60, key: 'G',
@@ -115,6 +132,18 @@ export const REP_THEORY = {
 <p>Das <b>Schicksalsmotiv</b> der 5. Sinfonie (1808) spielen die Streicher am Anfang im Unisono. Unsere Fassung ist eine Motiv-Etüde: Sie übt den typischen Rhythmus „kurz-kurz-kurz-lang“ in mehreren Sequenzen.</p>`,
     example: null, bass: true,
   },
+  'r-ase': {
+    title: 'Grieg: Åses Tod',
+    html: `<p>Ebenfalls aus <b>Peer Gynt</b>: die Musik zum Tod von Peers Mutter Åse. Grieg schreibt hier nur für <b>gedämpfte Streicher</b> (con sordini), Tempo „Andante doloroso“ – sehr langsam, sehr leise, ein großer Trauerchoral.</p>
+<p>Die Bassstimme ist direkt aus der Partitur übernommen. In der originalen Fassung hast du in der Mitte <b>acht Takte Pause</b>, wie im Orchester – die Begleitung spielt dann die Melodie der ersten Violinen weiter. Zählen nicht vergessen! Achte am Ende auf das C ohne Kreuz.</p>`,
+    example: null, bass: true,
+  },
+  'r-mahler5': {
+    title: 'Mahler: Sinfonie Nr. 5, Trauermarsch',
+    html: `<p>Mahlers <b>5. Sinfonie</b> (1901/02) beginnt mit einem einsamen <b>Trompetenruf</b> in cis-Moll – „In gemessenem Schritt. Streng. Wie ein Kondukt.“ Die originalnahe Fassung lässt dich diesen Ruf eine Oktave tiefer auf dem Bass spielen, mit den typischen Triolen.</p>
+<p>Danach kommt ein Ausschnitt aus der echten Bassstimme: der <b>Kondukt</b>, ein Trauerzug aus gezupften Grundtönen. Der 2/2-Takt (alla breve) wird in Halben gezählt, die App zählt trotzdem vier Viertel vor.</p>`,
+    example: null, bass: true,
+  },
   'r-film': {
     title: 'Filmmusik-Stil',
     html: `<p>In moderner Filmmusik ist der Bass oft der Motor: <b>Ostinati</b> (sich wiederholende Figuren), pulsierende Achtel und galoppierende Rhythmen treiben die Szene voran.</p>
@@ -130,11 +159,11 @@ export const REP_WORLD = {
   blurb: 'Berühmte Orchesterstellen und Filmmusik-Stil, je leicht und originalnah.',
   lessons: [
     { id: 'bl7-1', title: 'Tschaikowsky', steps: [T('r-schwanensee'), Pc('r-schwanensee-l'), Pc('r-schwanensee-o')] },
-    { id: 'bl7-2', title: 'Mahler', steps: [T('r-mahler'), Pc('r-mahler-l'), Pc('r-mahler-o')] },
+    { id: 'bl7-2', title: 'Mahler', steps: [T('r-mahler'), Pc('r-mahler-l'), Pc('r-mahler-o'), T('r-mahler5'), Pc('r-mahler5-l'), Pc('r-mahler5-o')] },
     { id: 'bl7-3', title: 'Bach', steps: [T('r-bach'), Pc('r-bach-l'), Pc('r-bach-o')] },
     { id: 'bl7-4', title: 'Mozart', steps: [T('r-mozart'), Pc('r-mozart-l'), Pc('r-mozart-o')] },
     { id: 'bl7-5', title: 'Beethoven', steps: [T('r-beethoven'), Pc('r-beethoven9-l'), Pc('r-beethoven9-o'), Pc('r-beethoven5-l'), Pc('r-beethoven5-o')] },
-    { id: 'bl7-6', title: 'Grieg', steps: [T('r-grieg'), Pc('r-bergkoenig-l')] },
+    { id: 'bl7-6', title: 'Grieg', steps: [T('r-grieg'), Pc('r-bergkoenig-l'), T('r-ase'), Pc('r-ase-l'), Pc('r-ase-o')] },
     { id: 'bl7-7', title: 'Filmmusik-Stil', steps: [T('r-film'), Pc('r-weite'), Pc('r-countdown'), Pc('r-wolkenreiter'), Pc('r-heldenmarsch')] },
   ],
   boss: 'r-bergkoenig-o',

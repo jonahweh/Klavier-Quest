@@ -2,7 +2,7 @@
 import { renderScore } from './notation.js';
 import { Input, Listener, Synth, Accomp, getCtx, unlockAudio } from './audio.js';
 import { Fingerboard, parseChords, chordLabel, TOLERANCE } from './bass.js';
-import { midiName, midiLabel } from './score.js';
+import { midiName, midiLabel, parseVoice } from './score.js';
 import { S, save } from './store.js';
 
 const isBlack = m => [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
@@ -89,6 +89,8 @@ export class Player {
     this.bass = !!opt.bass;
     this.tol = TOLERANCE[S.settings.inton || 'streng'] || 15;
     this.chords = this.score.chordStr ? parseChords(this.score.chordStr, this.score.measure).map(k => ({ ...k, label: chordLabel(k.chord.sym) })) : null;
+    this.mel = this.score.melStr ? parseVoice(this.score.melStr, 't').notes : null;
+    if (this.mel && !this.chords) this.chords = [];
     this.accOn = S.settings.accomp !== false;
     this.build();
   }
@@ -267,7 +269,7 @@ export class Player {
     if (!e) return;
     const vw = this.wrap.clientWidth;
     const target = Math.min(0, Math.max(vw - this.L.width - 20, vw * 0.3 - this.L.X(e.beat)));
-    const x = i === 0 ? Math.min(0, target) : target;
+    const x = i === 0 ? 0 : target;
     this.move.style.transition = instant ? 'none' : 'transform .35s cubic-bezier(.2,.7,.2,1)';
     this.move.style.transform = `translateX(${x}px)`;
   }
@@ -462,7 +464,7 @@ export class Player {
       const total = Math.ceil(this.score.total);
       for (let b = 0; b < total; b++) Synth.click(ctxStart + (countBeats + b) * spb, b % this.score.measure === 0);
     }
-    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1);
+    if (this.chords && this.accOn) Accomp.schedule(this.chords, spb, ctxStart + countBeats * spb, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1, this.mel);
     this.missIdx = 0;
     this.win = this.bass ? Math.max(0.32, Math.min(0.5, spb * 0.6)) : Math.max(0.22, Math.min(0.32, spb * 0.4));
     this.paint();
@@ -595,7 +597,7 @@ export class Player {
       if (this.bass) Synth.bass(p.midi + tr, t0 + n.beat * spb, n.dur * spb * (this.score.tech === 'pizz' ? 0.6 : 0.92), this.score.tech === 'pizz', 0.9);
       else Synth.note(p.midi, t0 + n.beat * spb, n.dur * spb * 0.95, n.staff === 'b' ? 0.6 : 0.8);
     }
-    if (this.chords && (this.accOn || !withMelody)) Accomp.schedule(this.chords, spb, tM, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1);
+    if (this.chords && (this.accOn || !withMelody)) Accomp.schedule(this.chords, spb, tM, this.score.style || 'straight', this.score.measure, S.settings.accVol ?? 1, this.mel);
     Listener.muted = true;
     this.$('.playhead').style.display = 'block';
     const p0 = performance.now() / 1000 + 0.3 + (tM - t0);

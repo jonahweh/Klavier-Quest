@@ -4,11 +4,11 @@
 
 const SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-const DUR = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25 };
+const DUR = { w: 4, h: 2, q: 1, e: 0.5, s: 0.25, t: 1 / 3 };   // t = Triolen-Achtel
 const ACC = { '': 0, '#': 1, 'b': -1, 'x': 2 };
 
 export const KEYS = {
-  C: {}, G: { F: 1 }, D: { F: 1, C: 1 }, A: { F: 1, C: 1, G: 1 },
+  C: {}, G: { F: 1 }, D: { F: 1, C: 1 }, A: { F: 1, C: 1, G: 1 }, E: { F: 1, C: 1, G: 1, D: 1 },
   F: { B: -1 }, Bb: { B: -1, E: -1 }, Eb: { B: -1, E: -1, A: -1 },
 };
 export const KEY_ORDER = {
@@ -35,7 +35,7 @@ export function parseVoice(str, staff) {
   for (const raw of str.trim().split(/\s+/)) {
     if (!raw) continue;
     if (raw === '|') { barChecks.push(beat); continue; }
-    const m = /^([^:/@]+)(?::([\d,]+))?(?:@([du]))?(?:\/([whqes])(\.)?)?$/.exec(raw);
+    const m = /^([^:/@]+)(?::([\d,]+))?(?:@([du]))?(?:\/([whqest])(\.)?)?$/.exec(raw);
     if (!m) throw new Error('Ungültiges Token: ' + raw);
     if (m[4]) dur = DUR[m[4]] * (m[5] ? 1.5 : 1);
     if (m[1] === 'r') {
@@ -45,7 +45,7 @@ export function parseVoice(str, staff) {
       const pitches = m[1].split('+').map((p, i) => ({ ...parsePitch(p), finger: fingers[i] }));
       out.push({ beat, dur, staff, rest: false, pitches, bow: m[3] || null });
     }
-    beat += dur;
+    beat = Math.round((beat + dur) * 48) / 48;   // Raster: Triolen und Sechzehntel exakt
   }
   return { notes: out, length: beat, barChecks };
 }
@@ -80,7 +80,7 @@ export function buildScore(piece) {
     ts, key: piece.key || 'C', tempo: piece.tempo || 80, staves, notes, events, total,
     measure: ts[0] * 4 / ts[1],
     lo: Math.min(...all), hi: Math.max(...all),
-    transpose: tr, tech: piece.tech || null, style: piece.style2 || null, chordStr: piece.chords || null,
+    transpose: tr, tech: piece.tech || null, style: piece.style2 || null, chordStr: piece.chords || null, melStr: piece.mel || null,
   };
 }
 
@@ -93,7 +93,7 @@ export function validatePiece(piece) {
     if (!piece[k]) continue;
     const v = parseVoice(piece[k], 't');
     v.barChecks.forEach((b, i) => { if (Math.abs(b - (i + 1) * L) > 1e-6) errs.push(`${k} Takt ${i + 1}: endet bei ${b}, erwartet ${(i + 1) * L}`); });
-    if (Math.abs(v.length % L) > 1e-6) errs.push(`${k}: Gesamtlänge ${v.length} kein ganzer Takt`);
+    if (Math.abs(v.length / L - Math.round(v.length / L)) > 1e-6) errs.push(`${k}: Gesamtlänge ${v.length} kein ganzer Takt`);
   }
   if (piece.rh && piece.lh) {
     const a = parseVoice(piece.rh, 't').length, b = parseVoice(piece.lh, 'b').length;

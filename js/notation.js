@@ -108,6 +108,11 @@ export function renderScore(svg, score, opt = {}) {
       h.dx = 0;
       if (i > 0 && h.step - heads[i - 1].step === 1 && heads[i - 1].dx === 0) h.dx = down ? -hwx : hwx;
     });
+    // Triolen-Kennzeichnung
+    if (Math.abs(tstr - 1 / 3) < 1e-6 && Math.abs((n.beat * 3) % 3) < 1e-4) {
+      const ty = down ? heads[0].y + 4.6 * S : Math.min(top[st] - 0.6 * S, heads[heads.length - 1].y - 4.3 * S);
+      g += `<text class="tri" x="${x + P / 3}" y="${ty}" style="font-size:${(S * 0.9).toFixed(1)}px">3</text>`;
+    }
     // Hilfslinien
     const ledgers = new Set();
     const topS = TOP[st], botS = TOP[st] - 8;
@@ -192,6 +197,7 @@ export function renderScore(svg, score, opt = {}) {
 }
 
 function baseDur(d) {
+  if (Math.abs(d - 1 / 3) < 1e-6) return 0.5;
   for (const b of [4, 2, 1, 0.5, 0.25]) if (Math.abs(d - b) < 1e-6 || Math.abs(d - b * 1.5) < 1e-6) return b;
   return d >= 4 ? 4 : d >= 2 ? 2 : d >= 1 ? 1 : d >= 0.5 ? 0.5 : 0.25;
 }

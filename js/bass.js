@@ -92,7 +92,7 @@ export function parseChords(str, measure) {
   str.split('|').map(s => s.trim()).filter(Boolean).forEach((bar, bi) => {
     const syms = bar.split(/\s+/);
     const d = measure / syms.length;
-    syms.forEach((s, i) => out.push({ beat: bi * measure + i * d, dur: d, chord: parseChord(s) }));
+    syms.forEach((s, i) => { if (s !== '-') out.push({ beat: bi * measure + i * d, dur: d, chord: parseChord(s) }); });
   });
   return out;
 }
