@@ -5,6 +5,11 @@ import { PRO_PIECES } from './pro-content.js';
 
 export const PIECES = {
   ...PRO_PIECES,
+  'abendgold': {
+    title: 'Abendgold', by: 'Klavier-Quest', style: 'Pop-Ballade', tempo: 72, key: 'E', ts: [3, 4],
+    rh: 'r/q G#4:1/e B4:2/e E5:5/q | D#5:4/q. B4:2/e G#4:1/q | E5:5/q C#5:3/e B4:2/e C#5:3/q | C#5:3/h B4:2/q | r/q G#4:1/e B4:2/e G#5:5/q | F#5:5/q. D#5:3/e B4:1/q | C#5:2/e B4:1/e C#5:2/q E5:4/q | D#5:3/h. | E5:2/q. F#5:3/e G#5:4/q | F#5:3/q D#5:2/q B4:1/q | B4:1/e D#5:2/e G#5:5/q F#5:4/q | E5:3/h. | C#5:1/q E5:2/q A5:5/q | G#5:4/q. F#5:3/e D#5:1/q | E5:3/q D#5:2/q B4:1/q | C#5:2/h G#4:1/q | A4:1/q C#5:2/q E5:4/q | F#5:5/q D#5:3/e B4:1/e F#5:5/q | E5:4/h. | E4+G#4+B4+E5:1,2,3,5/h.',
+    lh: 'E2:5/e B2:2 G#3:1 B3 G#3 B2 | G#2:5/e D#3:2 B3:1 D#3 B3 D#3 | C#2:5/e G#2:2 E3:1 G#3 E3 G#2 | A2:5/e E3:2 C#4:1 E3 C#4 E3 | E2:5/e B2:2 G#3:1 B3 G#3 B2 | B2:5/e F#3:2 D#4:1 F#3 D#4 F#3 | A2:5/e E3:2 C#4:1 E3 C#4 E3 | B2:5/e F#3:2 D#4:1 F#3 D#4 F#3 | A2:5/e E3:2 C#4:1 E3 C#4 E3 | B2:5/e F#3:2 D#4:1 F#3 D#4 F#3 | G#2:5/e D#3:2 B3:1 D#3 B3 D#3 | C#2:5/e G#2:2 E3:1 G#3 E3 G#2 | A2:5/e E3:2 C#4:1 E3 C#4 E3 | B2:5/e F#3:2 D#4:1 F#3 D#4 F#3 | G#2:5/e D#3:2 B3:1 D#3 B3 D#3 | C#2:5/e G#2:2 E3:1 G#3 E3 G#2 | A2:5/e E3:2 C#4:1 E3 C#4 E3 | B2:5/e F#3:2 D#4:1 F#3 D#4 F#3 | E2:5/e B2:2 G#3:1 B3 G#3 B2 | E2+B2+E3:5,2,1/h.',
+  },
   'erster-schritt': {
     title: 'Erster Schritt', by: 'Klavier-Quest', style: 'Etüde', tempo: 72, key: 'C', ts: [4, 4],
     rh: 'C4:1/q D4:2 E4:3 F4:4 | G4:5/h E4:3/h | F4:4/q E4:3 D4:2 C4:1 | D4:2/w | C4:1/q D4:2 E4:3 F4:4 | G4:5/h E4:3/h | F4:4/q D4:2 E4:3 D4:2 | C4:1/w',

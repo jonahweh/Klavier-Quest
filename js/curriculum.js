@@ -231,7 +231,7 @@ export const WORLDS = [
 ];
 
 // Wunschstücke: immer spielbar, unabhängig vom Fortschritt
-export const FAVORITES = { piano: ['schwanensee'], bass: REP_FAVORITES, voice: [] };
+export const FAVORITES = { piano: ['schwanensee', 'abendgold'], bass: REP_FAVORITES, voice: [] };
 export const worldsFor = inst => (inst === 'bass' ? BASS_WORLDS : inst === 'voice' ? VOICE_WORLDS : WORLDS);
 export const ALL_THEORY = { ...THEORY, ...BASS_THEORY, ...VOICE_THEORY };
 export { BASS_WORLDS, VOICE_WORLDS };
